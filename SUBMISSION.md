@@ -4,12 +4,12 @@ Complete this file during the hackathon and use it to prepare your submission th
 
 ## Project
 
-- **Project name:** TODO
-- **Short description:** TODO — describe the problem, what you built, and who benefits.
+- **Project name:** 60 Second Studio
+- **Short description:** A minimal browser music sketchpad for recording and arranging microphone takes within a fixed 60-second song.
 - **Code repository URL:** TODO
 - **Final submitted implementation commit SHA:** TODO
-- **Working demo URL or local demo steps:** TODO
-- **Demo access requirements:** TODO — explain any prerequisites without including private credentials.
+- **Working demo URL or local demo steps:** Run `npm install` then `npm run dev`, open the local Vite URL, and allow microphone permission.
+- **Demo access requirements:** Node.js 20+ for local development and a modern browser with microphone access. No credentials are required.
 
 ## Participants
 
@@ -21,14 +21,14 @@ Participate solo or in a team of up to 4. Remove unused rows.
 
 ## Run and demonstrate
 
-- **Prerequisites and versions:** TODO
-- **Install command:** TODO
-- **Required environment variable names:** TODO — use a sanitized example file if needed.
-- **Start command:** TODO
-- **Demo walkthrough:** TODO — brief steps showing the implemented features.
-- **Checks performed and results:** TODO
-- **Known limitations or incomplete features:** TODO
-- **Libraries, APIs, and public datasets used:** TODO — link sources and record attribution where required.
+- **Prerequisites and versions:** Node.js 20+ and a modern browser with microphone permission.
+- **Install command:** `npm install`
+- **Required environment variable names:** None.
+- **Start command:** `npm run dev`
+- **Demo walkthrough:** Create a track, set its instrument label, select its recording target, set a seek position, record a take, then play it back. Duplicate or delete a track to demonstrate track management. Refresh to demonstrate local persistence.
+- **Checks performed and results:** `git diff --check` passed. Build was not run in this workspace because the `npm` executable is unavailable.
+- **Known limitations or incomplete features:** Instrument choices do not apply audio processing. Audio recording requires browser support for microphone access and ScriptProcessor.
+- **Libraries, APIs, and public datasets used:** [React](https://react.dev/) and [Vite](https://vite.dev/). No external APIs or datasets are used.
 - **AI usage record:** [AI_USAGE.md](AI_USAGE.md)
 - **Development change log:** [CHANGELOG.md](CHANGELOG.md)
 

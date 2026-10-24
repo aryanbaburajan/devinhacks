@@ -4,16 +4,12 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
-No project implementation has been recorded yet. Replace this sentence with entries as you build:
+## 2026-10-24T21:52:43+05:30 — Add 60 Second Studio MVP
 
-```text
-## <actual timestamp> — <short change title>
-
-- Changed: <feature or files changed>
-- Why: <reason for the change>
-- Validation: <commands or manual checks actually run, with results>
-- Limitations: <known issues or "None identified in these checks">
-```
+- Changed: Built the Vite/React app in `src/`, added Vite configuration files, and updated `README.md` and `SUBMISSION.md` with setup and demo details.
+- Why: Provide a minimal music sketchpad with a fixed 60-second song, track management, instrument labels, microphone recording, interval-only overwriting, playback, and local persistence.
+- Validation: Reviewed the implementation and ran `git diff --check`. `npm install` and `npm run build` could not run because this workspace image has no `npm` executable.
+- Limitations: Instrument selections are labels only; audio capture depends on browser microphone permission and ScriptProcessor support.
 
 ## Template setup — 10 October 2026
 
