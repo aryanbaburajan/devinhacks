@@ -15,7 +15,7 @@ Record each meaningful project change during the event, newest first. Update thi
 
 - Changed: Added HTML line breaks between each primary and track control in `src/App.jsx`.
 - Why: Make the unstyled interface easier to scan without adding CSS.
-- Validation: Pending production build after this change.
+- Validation: Ran `npm run build` with Node.js v24.19.0 from the local NVM installation; Vite completed successfully. Ran `git diff --check` successfully.
 - Limitations: Layout intentionally uses browser-default styling only.
 
 ## 2026-10-24T21:59:44+05:30 — Make the timeline seekable during playback
