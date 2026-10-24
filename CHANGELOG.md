@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-24T22:00:34+05:30 — Increase plain control spacing
+
+- Changed: Added HTML line breaks between each primary and track control in `src/App.jsx`.
+- Why: Make the unstyled interface easier to scan without adding CSS.
+- Validation: Pending production build after this change.
+- Limitations: Layout intentionally uses browser-default styling only.
+
 ## 2026-10-24T21:59:44+05:30 — Make the timeline seekable during playback
 
 - Changed: Updated the seek control in `src/App.jsx` so it remains interactive during playback and stops at the user-selected point. Added basic HTML line breaks between controls and tracks.

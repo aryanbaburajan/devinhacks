@@ -256,24 +256,33 @@ export default function App() {
       <input aria-label="Seek" type="range" min="0" max={SONG_LENGTH} step="0.1" value={project.seek}
         disabled={recording} onChange={(event) => seekTo(Number(event.target.value))} />
       <br />
+      <br />
       <button type="button" onClick={playing ? stopPlayback : play} disabled={recording}>{playing ? 'Stop' : 'Play'}</button>
+      <br />
       <button type="button" onClick={toggleRecording} disabled={!selectedTrack || project.seek >= SONG_LENGTH}>
         {recording ? 'Stop recording' : 'Record'}
       </button>
+      <br />
       <output aria-label="Microphone volume">{recording ? volume : 0}</output>
       <br />
+      <br />
       <button type="button" onClick={addTrack} disabled={recording}>Create track</button>
+      <br />
       <br />
       {project.tracks.map((track) => (
         <div key={track.id}>
           <button type="button" onClick={() => updateProject({ selectedTrackId: track.id })} disabled={recording}
             aria-pressed={track.id === project.selectedTrackId}>Select</button>
+          <br />
           <select aria-label="Instrument" value={track.instrument} disabled={recording}
             onChange={(event) => updateTrack(track.id, { instrument: event.target.value })}>
             {instruments.map((instrument) => <option key={instrument}>{instrument}</option>)}
           </select>
+          <br />
           <button type="button" onClick={() => duplicateTrack(track.id)} disabled={recording}>Duplicate track</button>
+          <br />
           <button type="button" onClick={() => deleteTrack(track.id)} disabled={recording}>Delete track</button>
+          <br />
           <br />
         </div>
       ))}
