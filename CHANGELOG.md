@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-24T22:01:03+05:30 — Add responsive flexbox layout
+
+- Changed: Replaced control line breaks with flexbox layout classes in `src/App.jsx` and added structural layout rules in `src/App.css`.
+- Why: Arrange transport and track controls cleanly without visual styling individual elements.
+- Validation: Ran `npm run build` with Node.js v24.19.0 from the local NVM installation; Vite completed successfully. Ran `git diff --check` successfully.
+- Limitations: Deliberately uses browser-default colors, typography, borders, and control appearance.
+
 ## 2026-10-24T22:00:34+05:30 — Increase plain control spacing
 
 - Changed: Added HTML line breaks between each primary and track control in `src/App.jsx`.

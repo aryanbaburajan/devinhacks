@@ -24,6 +24,7 @@ Projects saved by the first prototype's multi-take format are converted to the c
 ## Current status
 
 - Implemented: 60-second seek timeline; create, duplicate, and delete tracks; instrument selector; microphone recording; interval-only overwrite; playback; local persistence; and a live numeric microphone-level indicator while recording.
+- Layout: responsive flexbox structure with browser-default control appearance; no visual decoration is applied to individual controls.
 - Instrument processing is intentionally not implemented. Instrument choices label the intended track type only.
 - Uses React and Vite. No external APIs or datasets are used.
 

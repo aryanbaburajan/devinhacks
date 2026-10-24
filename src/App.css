@@ -1,0 +1,32 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 2rem auto;
+  max-width: 48rem;
+}
+
+.transport,
+.transport-actions,
+.tracks,
+.track-list,
+.track {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.transport,
+.tracks,
+.track-list {
+  flex-direction: column;
+}
+
+.transport-actions,
+.track {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.seek {
+  width: 100%;
+}
