@@ -4,45 +4,47 @@ import { loadProject, saveProject } from './audioStore.js'
 const SONG_LENGTH = 60
 const instruments = ['Vocal', 'Vocal (autotuned)', 'Guitar', 'Piano', 'Drum']
 
-function newTrack(number) {
-  return { id: crypto.randomUUID(), name: `Track ${number}`, instrument: 'Vocal', clips: [] }
+function newTrack() {
+  return { id: crypto.randomUUID(), instrument: 'Vocal', audio: null }
 }
 
 function createInitialProject() {
-  const track = newTrack(1)
+  const track = newTrack()
   return { tracks: [track], selectedTrackId: track.id, seek: 0 }
 }
 
-function toStoredClip(clip) {
+function toStoredAudio(buffer) {
+  if (!buffer) return null
   return {
-    id: clip.id,
-    start: clip.start,
-    end: clip.end,
-    sampleRate: clip.buffer.sampleRate,
-    channels: Array.from({ length: clip.buffer.numberOfChannels }, (_, index) =>
-      clip.buffer.getChannelData(index).slice(),
-    ),
+    sampleRate: buffer.sampleRate,
+    channels: Array.from({ length: buffer.numberOfChannels }, (_, index) => buffer.getChannelData(index).slice()),
   }
 }
 
-function fromStoredClip(audioContext, clip) {
-  const buffer = audioContext.createBuffer(clip.channels.length, clip.channels[0].length, clip.sampleRate)
-  clip.channels.forEach((channel, index) => buffer.copyToChannel(channel, index))
-  return { ...clip, buffer }
+function fromStoredAudio(context, audio) {
+  if (!audio) return null
+  const buffer = context.createBuffer(audio.channels.length, audio.channels[0].length, audio.sampleRate)
+  audio.channels.forEach((channel, index) => buffer.copyToChannel(channel, index))
+  return buffer
 }
 
-function sliceClip(audioContext, clip, start, end) {
-  const clipStart = Math.max(start, clip.start)
-  const clipEnd = Math.min(end, clip.end)
-  if (clipEnd - clipStart < 0.01) return null
+function restoreTrack(context, track) {
+  if (track.audio) return { ...track, audio: fromStoredAudio(context, track.audio) }
+  if (!track.clips?.length) return { ...track, audio: null }
 
-  const from = Math.round((clipStart - clip.start) * clip.buffer.sampleRate)
-  const frameCount = Math.round((clipEnd - clipStart) * clip.buffer.sampleRate)
-  const buffer = audioContext.createBuffer(clip.buffer.numberOfChannels, frameCount, clip.buffer.sampleRate)
-  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
-    buffer.copyToChannel(clip.buffer.getChannelData(channel).slice(from, from + frameCount), channel)
+  const sampleRate = track.clips[0].sampleRate
+  const audio = context.createBuffer(1, Math.ceil(SONG_LENGTH * sampleRate), sampleRate)
+  const output = audio.getChannelData(0)
+  track.clips.forEach((clip) => output.set(clip.channels[0], Math.round(clip.start * sampleRate)))
+  return { id: track.id, instrument: track.instrument, audio }
+}
+
+function copyBuffer(context, source) {
+  const buffer = context.createBuffer(source.numberOfChannels, source.length, source.sampleRate)
+  for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
+    buffer.copyToChannel(source.getChannelData(channel), channel)
   }
-  return { id: crypto.randomUUID(), start: clipStart, end: clipEnd, buffer }
+  return buffer
 }
 
 export default function App() {
@@ -50,11 +52,12 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [recording, setRecording] = useState(false)
   const [playing, setPlaying] = useState(false)
-  const [message, setMessage] = useState('')
+  const [volume, setVolume] = useState(0)
   const audioContextRef = useRef(null)
   const recorderRef = useRef(null)
+  const recordingFrameRef = useRef(null)
   const playSourcesRef = useRef([])
-  const playStartedAtRef = useRef(0)
+  const playFrameRef = useRef(null)
   const saveTimerRef = useRef(null)
 
   function audioContext() {
@@ -70,13 +73,10 @@ export default function App() {
         const context = audioContext()
         setProject({
           ...stored,
-          tracks: stored.tracks.map((track) => ({
-            ...track,
-            clips: track.clips.map((clip) => fromStoredClip(context, clip)),
-          })),
+          tracks: stored.tracks.map((track) => restoreTrack(context, track)),
         })
       })
-      .catch(() => active && setMessage('Could not restore saved recordings.'))
+      .catch(() => window.alert('Could not restore saved recordings.'))
       .finally(() => active && setReady(true))
     return () => { active = false }
   }, [])
@@ -85,11 +85,10 @@ export default function App() {
     if (!ready) return undefined
     clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      const stored = {
+      saveProject({
         ...project,
-        tracks: project.tracks.map((track) => ({ ...track, clips: track.clips.map(toStoredClip) })),
-      }
-      saveProject(stored).catch(() => setMessage('Could not save recordings locally.'))
+        tracks: project.tracks.map((track) => ({ ...track, audio: toStoredAudio(track.audio) })),
+      }).catch(() => window.alert('Could not save recordings locally.'))
     }, 250)
     return () => clearTimeout(saveTimerRef.current)
   }, [project, ready])
@@ -97,6 +96,8 @@ export default function App() {
   useEffect(() => () => {
     recorderRef.current?.stop()
     playSourcesRef.current.forEach((source) => source.stop())
+    cancelAnimationFrame(recordingFrameRef.current)
+    cancelAnimationFrame(playFrameRef.current)
     audioContextRef.current?.close()
   }, [])
 
@@ -108,7 +109,7 @@ export default function App() {
 
   function addTrack() {
     setProject((current) => {
-      const track = newTrack(current.tracks.length + 1)
+      const track = newTrack()
       return { ...current, tracks: [...current.tracks, track], selectedTrackId: track.id }
     })
   }
@@ -116,22 +117,14 @@ export default function App() {
   function duplicateTrack(id) {
     setProject((current) => {
       const source = current.tracks.find((track) => track.id === id)
-      const duplicate = {
-        ...source,
-        id: crypto.randomUUID(),
-        name: `${source.name} copy`,
-        clips: source.clips.map((clip) => ({ ...clip, id: crypto.randomUUID() })),
-      }
+      const duplicate = { ...source, id: crypto.randomUUID() }
       return { ...current, tracks: [...current.tracks, duplicate], selectedTrackId: duplicate.id }
     })
   }
 
   function deleteTrack(id) {
     setProject((current) => {
-      if (current.tracks.length === 1) {
-        setMessage('Keep at least one track in the song.')
-        return current
-      }
+      if (current.tracks.length === 1) return current
       const tracks = current.tracks.filter((track) => track.id !== id)
       return { ...current, tracks, selectedTrackId: tracks[0].id }
     })
@@ -145,6 +138,7 @@ export default function App() {
   }
 
   function stopPlayback() {
+    cancelAnimationFrame(playFrameRef.current)
     playSourcesRef.current.forEach((source) => source.stop())
     playSourcesRef.current = []
     setPlaying(false)
@@ -155,28 +149,26 @@ export default function App() {
     const context = audioContext()
     await context.resume()
     const startAt = project.seek
-    const remaining = SONG_LENGTH - startAt
-    if (remaining <= 0) return
+    if (startAt >= SONG_LENGTH) return
     const sources = []
-    project.tracks.forEach((track) => track.clips.forEach((clip) => {
-      if (clip.end <= startAt) return
+    project.tracks.forEach((track) => {
+      if (!track.audio) return
       const source = context.createBufferSource()
-      source.buffer = clip.buffer
+      source.buffer = track.audio
       source.connect(context.destination)
-      const offset = Math.max(0, startAt - clip.start)
-      source.start(context.currentTime + Math.max(0, clip.start - startAt), offset)
+      source.start(context.currentTime, startAt)
       sources.push(source)
-    }))
+    })
     playSourcesRef.current = sources
-    playStartedAtRef.current = context.currentTime
+    const startedAt = context.currentTime
     setPlaying(true)
     const tick = () => {
-      const seek = Math.min(SONG_LENGTH, startAt + context.currentTime - playStartedAtRef.current)
+      const seek = Math.min(SONG_LENGTH, startAt + context.currentTime - startedAt)
       updateProject({ seek })
       if (seek >= SONG_LENGTH) stopPlayback()
-      else requestAnimationFrame(tick)
+      else playFrameRef.current = requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
+    playFrameRef.current = requestAnimationFrame(tick)
   }
 
   async function toggleRecording() {
@@ -198,99 +190,84 @@ export default function App() {
       const start = project.seek
       const startedAt = context.currentTime
       let stopped = false
-      processor.onaudioprocess = (event) => chunks.push(event.inputBuffer.getChannelData(0).slice())
+      processor.onaudioprocess = (event) => {
+        const chunk = event.inputBuffer.getChannelData(0).slice()
+        chunks.push(chunk)
+        const rms = Math.sqrt(chunk.reduce((sum, sample) => sum + sample ** 2, 0) / chunk.length)
+        setVolume(Math.round(rms * 100))
+      }
       input.connect(processor)
       processor.connect(silentOutput)
       silentOutput.connect(context.destination)
       const stop = () => {
-          if (stopped) return
-          stopped = true
-          clearTimeout(recorderRef.current?.endTimer)
-          processor.disconnect()
-          silentOutput.disconnect()
-          input.disconnect()
-          stream.getTracks().forEach((track) => track.stop())
-          const duration = Math.min(SONG_LENGTH - start, context.currentTime - startedAt)
-          const frames = Math.round(duration * context.sampleRate)
-          const buffer = context.createBuffer(1, frames, context.sampleRate)
-          const output = buffer.getChannelData(0)
-          let offset = 0
-          for (const chunk of chunks) {
-            output.set(chunk.subarray(0, Math.max(0, frames - offset)), offset)
-            offset += chunk.length
-            if (offset >= frames) break
-          }
-          const end = start + duration
-          setProject((current) => ({
-            ...current,
-            seek: end,
-            tracks: current.tracks.map((track) => {
-              if (track.id !== current.selectedTrackId) return track
-              const preserved = track.clips.flatMap((clip) => [
-                sliceClip(context, clip, clip.start, start),
-                sliceClip(context, clip, end, clip.end),
-              ].filter(Boolean))
-              return { ...track, clips: [...preserved, { id: crypto.randomUUID(), start, end, buffer }] }
-            }),
-          }))
-          setRecording(false)
-          recorderRef.current = null
+        if (stopped) return
+        stopped = true
+        clearTimeout(recorderRef.current?.endTimer)
+        cancelAnimationFrame(recordingFrameRef.current)
+        processor.disconnect()
+        silentOutput.disconnect()
+        input.disconnect()
+        stream.getTracks().forEach((track) => track.stop())
+        const duration = Math.min(SONG_LENGTH - start, context.currentTime - startedAt)
+        const frameCount = Math.round(duration * context.sampleRate)
+        const recordingBuffer = context.createBuffer(1, frameCount, context.sampleRate)
+        const recorded = recordingBuffer.getChannelData(0)
+        let offset = 0
+        for (const chunk of chunks) {
+          recorded.set(chunk.subarray(0, Math.max(0, frameCount - offset)), offset)
+          offset += chunk.length
+          if (offset >= frameCount) break
+        }
+        const end = Math.min(SONG_LENGTH, start + duration)
+        setProject((current) => ({
+          ...current,
+          seek: end,
+          tracks: current.tracks.map((track) => {
+            if (track.id !== current.selectedTrackId) return track
+            const fullLength = Math.ceil(SONG_LENGTH * context.sampleRate)
+            const audio = track.audio ? copyBuffer(context, track.audio) : context.createBuffer(1, fullLength, context.sampleRate)
+            audio.getChannelData(0).set(recorded, Math.round(start * context.sampleRate))
+            return { ...track, audio }
+          }),
+        }))
+        setVolume(0)
+        setRecording(false)
+        recorderRef.current = null
       }
-      recorderRef.current = {
-        stop,
-        endTimer: window.setTimeout(stop, (SONG_LENGTH - start) * 1000),
-      }
+      recorderRef.current = { stop, endTimer: window.setTimeout(stop, (SONG_LENGTH - start) * 1000) }
       setRecording(true)
+      const moveSeek = () => {
+        updateProject({ seek: Math.min(SONG_LENGTH, start + context.currentTime - startedAt) })
+        if (!stopped) recordingFrameRef.current = requestAnimationFrame(moveSeek)
+      }
+      recordingFrameRef.current = requestAnimationFrame(moveSeek)
     } catch (error) {
-      setMessage('Microphone access is required to record.')
+      window.alert('Microphone access is required to record.')
     }
   }
 
   return (
     <main>
-      <h1>60 Second Studio</h1>
-      <p>Make a song that is no longer than 60 seconds.</p>
-      {message && <p role="status">{message}</p>}
-
-      <section aria-label="Song transport">
-        <label htmlFor="seek">Seek: {project.seek.toFixed(1)} / 60 seconds</label>
-        <input id="seek" type="range" min="0" max={SONG_LENGTH} step="0.1" value={project.seek}
-          disabled={recording || playing} onChange={(event) => updateProject({ seek: Number(event.target.value) })} />
-        <button type="button" onClick={playing ? stopPlayback : play} disabled={recording}>{playing ? 'Stop' : 'Play'}</button>
-        <button type="button" onClick={toggleRecording} disabled={!selectedTrack || project.seek >= SONG_LENGTH}>
-          {recording ? 'Stop recording' : 'Record'}
-        </button>
-        <p>{recording ? `Recording ${selectedTrack?.name} from ${project.seek.toFixed(1)} seconds…` : `Recording target: ${selectedTrack?.name ?? 'None'}`}</p>
-      </section>
-
-      <section aria-label="Tracks">
-        <h2>Tracks</h2>
-        <button type="button" onClick={addTrack}>Create track</button>
-        {project.tracks.map((track) => (
-          <fieldset key={track.id}>
-            <legend>
-              <label>
-                <input type="radio" name="selected-track" checked={track.id === project.selectedTrackId}
-                  onChange={() => updateProject({ selectedTrackId: track.id })} disabled={recording} />
-                Recording target
-              </label>
-            </legend>
-            <label>
-              Name
-              <input value={track.name} onChange={(event) => updateTrack(track.id, { name: event.target.value })} />
-            </label>
-            <label>
-              Instrument
-              <select value={track.instrument} onChange={(event) => updateTrack(track.id, { instrument: event.target.value })}>
-                {instruments.map((instrument) => <option key={instrument}>{instrument}</option>)}
-              </select>
-            </label>
-            <p>{track.clips.length} recording{track.clips.length === 1 ? '' : 's'} on this track.</p>
-            <button type="button" onClick={() => duplicateTrack(track.id)} disabled={recording}>Duplicate track</button>
-            <button type="button" onClick={() => deleteTrack(track.id)} disabled={recording}>Delete track</button>
-          </fieldset>
-        ))}
-      </section>
+      <input aria-label="Seek" type="range" min="0" max={SONG_LENGTH} step="0.1" value={project.seek}
+        disabled={recording || playing} onChange={(event) => updateProject({ seek: Number(event.target.value) })} />
+      <button type="button" onClick={playing ? stopPlayback : play} disabled={recording}>{playing ? 'Stop' : 'Play'}</button>
+      <button type="button" onClick={toggleRecording} disabled={!selectedTrack || project.seek >= SONG_LENGTH}>
+        {recording ? 'Stop recording' : 'Record'}
+      </button>
+      <output aria-label="Microphone volume">{recording ? volume : 0}</output>
+      <button type="button" onClick={addTrack} disabled={recording}>Create track</button>
+      {project.tracks.map((track) => (
+        <div key={track.id}>
+          <button type="button" onClick={() => updateProject({ selectedTrackId: track.id })} disabled={recording}
+            aria-pressed={track.id === project.selectedTrackId}>Select</button>
+          <select aria-label="Instrument" value={track.instrument} disabled={recording}
+            onChange={(event) => updateTrack(track.id, { instrument: event.target.value })}>
+            {instruments.map((instrument) => <option key={instrument}>{instrument}</option>)}
+          </select>
+          <button type="button" onClick={() => duplicateTrack(track.id)} disabled={recording}>Duplicate track</button>
+          <button type="button" onClick={() => deleteTrack(track.id)} disabled={recording}>Delete track</button>
+        </div>
+      ))}
     </main>
   )
 }

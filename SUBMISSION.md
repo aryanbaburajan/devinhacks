@@ -25,9 +25,9 @@ Participate solo or in a team of up to 4. Remove unused rows.
 - **Install command:** `npm install`
 - **Required environment variable names:** None.
 - **Start command:** `npm run dev`
-- **Demo walkthrough:** Create a track, set its instrument label, select its recording target, set a seek position, record a take, then play it back. Duplicate or delete a track to demonstrate track management. Refresh to demonstrate local persistence.
-- **Checks performed and results:** `git diff --check` passed. Build was not run in this workspace because the `npm` executable is unavailable.
-- **Known limitations or incomplete features:** Instrument choices do not apply audio processing. Audio recording requires browser support for microphone access and ScriptProcessor.
+- **Demo walkthrough:** Create a track, set its instrument label, select its recording target, set a seek position, and record. Watch the seek and numeric microphone meter change, then stop and play back. Duplicate or delete a track to demonstrate track management. Refresh to demonstrate local persistence.
+- **Checks performed and results:** `npm run build` completed successfully with Node.js v24.19.0 from the local NVM installation. `git diff --check` passed.
+- **Known limitations or incomplete features:** Instrument choices do not apply audio processing. Audio recording requires browser support for microphone access and ScriptProcessor; the mic meter is an uncalibrated RMS integer.
 - **Libraries, APIs, and public datasets used:** [React](https://react.dev/) and [Vite](https://vite.dev/). No external APIs or datasets are used.
 - **AI usage record:** [AI_USAGE.md](AI_USAGE.md)
 - **Development change log:** [CHANGELOG.md](CHANGELOG.md)
