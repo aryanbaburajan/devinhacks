@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-24T21:59:44+05:30 — Make the timeline seekable during playback
+
+- Changed: Updated the seek control in `src/App.jsx` so it remains interactive during playback and stops at the user-selected point. Added basic HTML line breaks between controls and tracks.
+- Why: Allow direct timeline seeking and make the intentionally unstyled interface easier to scan.
+- Validation: Ran `npm run build` with Node.js v24.19.0 from the local NVM installation; Vite completed successfully. Ran `git diff --check` successfully.
+- Limitations: Seeking stops playback rather than resuming from the new location.
+
 ## 2026-10-24T21:58:26+05:30 — Simplify track audio and add recording feedback
 
 - Changed: Removed visible non-control labels, track names, and take counts in `src/App.jsx`; changed each track to one composite audio buffer; made seek advance while recording; added a live numeric microphone-level indicator; and migrate prior multi-take local projects on load. Added `package-lock.json`.

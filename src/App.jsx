@@ -137,6 +137,11 @@ export default function App() {
     }))
   }
 
+  function seekTo(value) {
+    if (playing) stopPlayback()
+    updateProject({ seek: value })
+  }
+
   function stopPlayback() {
     cancelAnimationFrame(playFrameRef.current)
     playSourcesRef.current.forEach((source) => source.stop())
@@ -249,13 +254,16 @@ export default function App() {
   return (
     <main>
       <input aria-label="Seek" type="range" min="0" max={SONG_LENGTH} step="0.1" value={project.seek}
-        disabled={recording || playing} onChange={(event) => updateProject({ seek: Number(event.target.value) })} />
+        disabled={recording} onChange={(event) => seekTo(Number(event.target.value))} />
+      <br />
       <button type="button" onClick={playing ? stopPlayback : play} disabled={recording}>{playing ? 'Stop' : 'Play'}</button>
       <button type="button" onClick={toggleRecording} disabled={!selectedTrack || project.seek >= SONG_LENGTH}>
         {recording ? 'Stop recording' : 'Record'}
       </button>
       <output aria-label="Microphone volume">{recording ? volume : 0}</output>
+      <br />
       <button type="button" onClick={addTrack} disabled={recording}>Create track</button>
+      <br />
       {project.tracks.map((track) => (
         <div key={track.id}>
           <button type="button" onClick={() => updateProject({ selectedTrackId: track.id })} disabled={recording}
@@ -266,6 +274,7 @@ export default function App() {
           </select>
           <button type="button" onClick={() => duplicateTrack(track.id)} disabled={recording}>Duplicate track</button>
           <button type="button" onClick={() => deleteTrack(track.id)} disabled={recording}>Delete track</button>
+          <br />
         </div>
       ))}
     </main>

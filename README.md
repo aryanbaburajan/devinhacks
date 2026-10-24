@@ -2,7 +2,7 @@
 
 A deliberately small, browser-based music sketchpad. A song is always 60 seconds long: create tracks, choose their intended instrument, and record microphone audio onto the selected track.
 
-The seek advances during recording. The recorder writes from the current seek position to the point where recording stops, replacing only that interval while preserving audio before and after it on the same track. Each track retains one composite audio buffer rather than a list of takes.
+The seek advances during recording. It can also be adjusted during playback; adjusting it stops playback at the newly chosen point. The recorder writes from the current seek position to the point where recording stops, replacing only that interval while preserving audio before and after it on the same track. Each track retains one composite audio buffer rather than a list of takes.
 
 ## Run the project
 
