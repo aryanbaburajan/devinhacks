@@ -55,14 +55,14 @@ async function waitFor(check) {
 function button(text) { return [...document.querySelectorAll('button')].find((node) => node.textContent.trim() === text) }
 async function click(text) { await act(async () => button(text).click()) }
 async function instrument(value) {
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 5; i++) {
     const picker = document.querySelector('.instrument-picker')
     if (picker.getAttribute('aria-label').startsWith(`Instrument: ${value}.`)) return
     await act(async () => picker.click())
   }
   assert.fail(`Instrument ${value} was not reachable`)
 }
-async function mount({ muted = false, initialInstrument = 'Piano' } = {}) {
+async function mount({ muted = false, initialInstrument = 'Piano', octaveDirection = 1 } = {}) {
   globalThis.indexedDB = new IDBFactory()
   sourceStarts = 0
   globalThis.testAnalyze = async () => frames
@@ -72,7 +72,7 @@ async function mount({ muted = false, initialInstrument = 'Piano' } = {}) {
     return new TestContext().createBuffer(1, 480000, 8000)
   }
   await saveProject({ bpm: 120, seek: 0, selectedTrackId: 'saved', tracks: [{
-    id: 'saved', instrument: initialInstrument, muted,
+    id: 'saved', instrument: initialInstrument, muted, pianoOctaveDirection: octaveDirection,
     audio: { sampleRate: 8000, channels: [new Float32Array(4000).fill(0.1)] },
   }] })
   const root = createRoot(document.getElementById('root'))
@@ -337,7 +337,7 @@ test('instrument button cycles through every instrument and wraps back to mic', 
   try {
     const picker = document.querySelector('.instrument-picker')
     picker.focus()
-    for (const value of ['Guitar', 'Electric Guitar', 'Piano', 'Saxophone', 'Drum', 'Vocal']) {
+    for (const value of ['Guitar', 'Electric Guitar', 'Piano', 'Saxophone', 'Vocal']) {
       await act(async () => picker.click())
       assert.ok(picker.getAttribute('aria-label').startsWith(`Instrument: ${value}.`))
       assert.equal(document.activeElement, picker)
@@ -349,8 +349,8 @@ test('instrument button cycles through every instrument and wraps back to mic', 
   }
 })
 
-test('saved autotune tracks become playable vocals without losing their recordings', async () => {
-  for (const initialInstrument of ['Vocal (autotuned)', 'Voice (autotuned)']) {
+test('saved retired instruments become playable vocals without losing their recordings', async () => {
+  for (const initialInstrument of ['Vocal (autotuned)', 'Voice (autotuned)', 'Drum']) {
     const unmount = await mount({ initialInstrument })
     try {
       assert.equal(document.querySelector('.instrument-picker').getAttribute('aria-label'), 'Instrument: Vocal. Next: Guitar')
@@ -377,7 +377,7 @@ test('inline octave cycles through its range and new tracks default to E minor w
     const octave = row.querySelector('.octave-cycle')
     assert.equal(row.querySelector('select'), null)
     assert.equal(octave.textContent, '0')
-    for (const expected of ['+1', '+2', '-2', '-1', '0']) {
+    for (const expected of ['+1', '+2', '0', '-1', '-2', '0', '+1', '+2', '0', '-1', '-2', '0']) {
       await act(async () => octave.click())
       assert.equal(octave.textContent, expected)
     }
@@ -393,6 +393,22 @@ test('inline octave cycles through its range and new tracks default to E minor w
   } finally {
     await unmount()
   }
+})
+
+test('restored zero octave remembers that the next cycle is negative', async () => {
+  const unmount = await mount({ octaveDirection: -1 })
+  try {
+    const octave = document.querySelector('.octave-cycle')
+    assert.equal(octave.textContent, '0')
+    for (const expected of ['-1', '-2', '0', '+1', '+2', '0']) {
+      await act(async () => octave.click())
+      assert.equal(octave.textContent, expected)
+    }
+    await settle(300)
+    const saved = await loadProject()
+    assert.equal(saved.tracks[0].pianoOctave, 0)
+    assert.equal(saved.tracks[0].pianoOctaveDirection, -1)
+  } finally { await unmount() }
 })
 
 test('MIDI export downloads generated notes even when sample rendering fails and excludes muted tracks', async () => {

@@ -26,6 +26,7 @@ function newTrack() {
     pianoAudio: null,
     pianoRenderVersion: null,
     pianoOctave: 0,
+    pianoOctaveDirection: 1,
     pianoScale: DEFAULT_PIANO_SCALE,
   }
 }
@@ -53,11 +54,12 @@ function fromStoredAudio(context, audio) {
 function restoreTrack(context, track) {
   // Retired instrument choices keep their original microphone recording.
   const { autotunedAudio, ...savedTrack } = track
-  track = { ...savedTrack, instrument: track.instrument === 'Vocal (autotuned)' || track.instrument === 'Voice (autotuned)' ? 'Vocal' : track.instrument }
+  track = { ...savedTrack, instrument: ['Vocal (autotuned)', 'Voice (autotuned)', 'Drum'].includes(track.instrument) ? 'Vocal' : track.instrument }
   track = { ...track, pianoScale: PIANO_SCALES.some((scale) => scale.value === track.pianoScale)
     ? track.pianoScale : DEFAULT_PIANO_SCALE }
   track = { ...track, pianoOctave: Number.isFinite(track.pianoOctave)
     ? Math.max(-2, Math.min(2, Math.round(track.pianoOctave))) : 0 }
+  track = { ...track, pianoOctaveDirection: track.pianoOctaveDirection === -1 ? -1 : 1 }
   if (track.audio) {
     return {
       ...track,
@@ -87,6 +89,7 @@ function restoreTrack(context, track) {
     id: track.id,
     instrument: track.instrument,
     pianoOctave: track.pianoOctave,
+    pianoOctaveDirection: track.pianoOctaveDirection,
     pianoScale: track.pianoScale,
     muted: track.muted ?? false,
     audio,
@@ -433,7 +436,9 @@ export default function App() {
   function cyclePianoOctave(track) {
     stopPlayback()
     const octave = track.pianoOctave ?? 0
-    updateTrack(track.id, { pianoOctave: octave >= 2 ? -2 : octave + 1 })
+    const direction = octave === 0 ? (track.pianoOctaveDirection === -1 ? -1 : 1) : Math.sign(octave)
+    const next = Math.abs(octave) === 2 ? 0 : octave + direction
+    updateTrack(track.id, { pianoOctave: next, pianoOctaveDirection: next === 0 ? -direction : direction })
   }
 
   function seekTo(value) {

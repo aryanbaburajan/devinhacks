@@ -12,7 +12,6 @@ export default function TrackIcon({ name }) {
     electric: 'm14 10 6-7 2 2-7 6M14 10l-4-1-1 4-6 3 3 5 6-2 3-6-1-3ZM8 16h.01',
     piano: 'M3 4h18v16H3V4m6 0v16m6-16v16M7 4v8h4V4m2 0v8h4V4',
     sax: 'M10 3h5v10c0 8-11 9-11 2V9l5 3v3c0 2 3 2 3-1V6h-2V3m5 6h3m-3 4h3M4 9l5 3',
-    drum: 'M3 10c0-4 18-4 18 0s-18 4-18 0Zm0 0v8c0 4 18 4 18 0v-8M7 12v8m10-8v8M5 2l11 4M19 2 8 6',
   }
   return <svg className="track-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>
 }
