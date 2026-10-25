@@ -1,18 +1,27 @@
 {
-  "name": "sixty-second-studio",
+  "name": "s-251x",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --test src/*.test.js",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
+    "midi-file": "^1.2.4",
+    "pitchy": "^4.1.0",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "smplr": "^1.1.0",
+    "three": "^0.186.1",
+    "vite": "latest"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.6",
+    "jsdom": "^30.1.3",
+    "web-audio-engine": "^0.13.4"
+  }
 }
