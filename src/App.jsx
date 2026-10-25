@@ -110,6 +110,8 @@ export default function App() {
   const [project, setProject] = useState(createInitialProject)
   const [ready, setReady] = useState(false)
   const [recording, setRecording] = useState(false)
+  const [arming, setArming] = useState(false)
+  const captureBusy = recording || arming
   const [playing, setPlaying] = useState(false)
   const [preparing, setPreparing] = useState(false)
   const [playbackError, setPlaybackError] = useState('')
@@ -122,6 +124,7 @@ export default function App() {
   const renderingTrackIds = Object.keys(pianoMessages).filter((id) => pianoMessages[id]?.loading)
   const audioContextRef = useRef(null)
   const recorderRef = useRef(null)
+  const pendingRecordingStreamRef = useRef(null)
   const recordingFrameRef = useRef(null)
   const playSourcesRef = useRef([])
   const playFrameRef = useRef(null)
@@ -131,8 +134,6 @@ export default function App() {
   const playbackRequestRef = useRef(0)
   const metronomeRef = useRef(null)
   const metronomeBufferRef = useRef(null)
-  const seekClickRef = useRef(null)
-  const seekClickRequestRef = useRef(0)
 
   function audioContext() {
     if (!audioContextRef.current) audioContextRef.current = new AudioContext()
@@ -205,7 +206,8 @@ export default function App() {
     melodyClientRef.current = null
     playbackRequestRef.current += 1
     stopMetronome()
-    recorderRef.current?.stop()
+    recorderRef.current?.stop(false)
+    pendingRecordingStreamRef.current?.getTracks().forEach((track) => track.stop())
     playSourcesRef.current.forEach(({ source }) => source.stop())
     cancelAnimationFrame(recordingFrameRef.current)
     cancelAnimationFrame(playFrameRef.current)
@@ -249,7 +251,7 @@ export default function App() {
   }
 
   async function exportMidi() {
-    if (recording || exportRef.current) return
+    if (captureBusy || exportRef.current) return
     const controller = new AbortController()
     exportRef.current = controller
     setExporting(true)
@@ -444,26 +446,12 @@ export default function App() {
   function seekTo(value) {
     stopPlayback()
     updateProject({ seek: value })
-    const context = audioContext()
-    const request = ++seekClickRequestRef.current
-    context.resume().then(() => {
-      if (request !== seekClickRequestRef.current) return
-      const click = context.createBufferSource()
-      click.buffer = metronomeBuffer(context, project.bpm, 0.035)
-      click.connect(context.destination)
-      click.onended = () => click.disconnect()
-      seekClickRef.current = click
-      click.start()
-    }).catch(() => {})
   }
 
   function stopMetronome() {
-    seekClickRequestRef.current += 1
-    for (const ref of [metronomeRef, seekClickRef]) {
-      ref.current?.stop()
-      ref.current?.disconnect()
-      ref.current = null
-    }
+    metronomeRef.current?.stop()
+    metronomeRef.current?.disconnect()
+    metronomeRef.current = null
   }
 
   function startMetronome(context, seek, startTime, loop) {
@@ -482,6 +470,8 @@ export default function App() {
   }
 
   function stopPlayback() {
+    pendingRecordingStreamRef.current?.getTracks().forEach((track) => track.stop())
+    pendingRecordingStreamRef.current = null
     stopMetronome()
     playbackRequestRef.current += 1
     cancelAnimationFrame(playFrameRef.current)
@@ -489,6 +479,38 @@ export default function App() {
     playSourcesRef.current = []
     setPlaying(false)
     setPreparing(false)
+    setArming(false)
+  }
+
+  async function preparePlaybackTracks(tracks) {
+    return Promise.all(tracks.filter((track) => track.audio).map(async (track) => ({
+      track,
+      audio: isSampledInstrument(track.instrument)
+        ? track.pianoAudio && track.pianoBpm === project.bpm && track.renderedInstrument === track.instrument && track.pianoRenderVersion === PIANO_RENDER_VERSION && track.renderedPianoOctave === (track.pianoOctave ?? 0) && track.renderedPianoScale === (track.pianoScale ?? DEFAULT_PIANO_SCALE)
+          ? track.pianoAudio : await renderPianoTrack(track.id, track.audio)
+        : track.audio,
+    })))
+  }
+
+  function startTrackPlayback(context, tracks, startTime, loop) {
+    const sources = []
+    playSourcesRef.current = sources
+    for (const { track, audio } of tracks) {
+      if (!audio) continue
+      const source = context.createBufferSource()
+      const gain = context.createGain()
+      source.buffer = audio.duration < SONG_LENGTH ? copyBuffer(context, audio) : audio
+      source.loop = loop
+      source.loopStart = 0
+      source.loopEnd = SONG_LENGTH
+      gain.gain.value = track.muted ? 0 : 1
+      source.connect(gain)
+      gain.connect(context.destination)
+      source.onended = () => { source.disconnect(); gain.disconnect() }
+      if (loop) source.start(startTime, 0)
+      else source.start(startTime, 0, SONG_LENGTH)
+      sources.push({ source, gain, trackId: track.id })
+    }
   }
 
   async function play() {
@@ -501,38 +523,14 @@ export default function App() {
     const context = audioContext()
     await context.resume()
     const startAt = 0
-    const playableTracks = await Promise.all(project.tracks
-      .filter((track) => track.audio)
-      .map(async (track) => ({
-        track,
-        audio: isSampledInstrument(track.instrument)
-            ? track.pianoAudio && track.pianoBpm === project.bpm && track.renderedInstrument === track.instrument && track.pianoRenderVersion === PIANO_RENDER_VERSION && track.renderedPianoOctave === (track.pianoOctave ?? 0) && track.renderedPianoScale === (track.pianoScale ?? DEFAULT_PIANO_SCALE)
-              ? track.pianoAudio
-              : await renderPianoTrack(track.id, track.audio)
-          : track.audio,
-      })))
+    const playableTracks = await preparePlaybackTracks(project.tracks)
 
     if (request !== playbackRequestRef.current) return
     if (playableTracks.some(({ track, audio }) => !track.muted && !audio)) {
       throw new Error('A track could not be prepared. Retry its conversion before playing.')
     }
-    const sources = []
     const startTime = context.currentTime + 0.05
-    for (const { track, audio } of playableTracks) {
-      if (!audio) continue
-      const source = context.createBufferSource()
-      const gain = context.createGain()
-      source.buffer = audio.duration < SONG_LENGTH ? copyBuffer(context, audio) : audio
-      source.loop = true
-      source.loopStart = 0
-      source.loopEnd = SONG_LENGTH
-      gain.gain.value = track.muted ? 0 : 1
-      source.connect(gain)
-      gain.connect(context.destination)
-      source.start(startTime, startAt)
-      sources.push({ source, gain, trackId: track.id })
-    }
-    playSourcesRef.current = sources
+    startTrackPlayback(context, playableTracks, startTime, true)
     startMetronome(context, startAt, startTime, true)
     const startedAt = startTime
     setPlaying(true)
@@ -557,16 +555,35 @@ export default function App() {
       recorderRef.current?.stop()
       return
     }
-    if (!selectedTrack) return
+    if (arming) { stopPlayback(); return }
+    if (!selectedTrack || !ready) return
     stopPlayback()
+    const request = ++playbackRequestRef.current
+    const targetTrack = selectedTrack
+    setArming(true)
+    setPreparing(true)
+    setPlaybackError('')
     updateProject({ seek: 0 })
+    let stream, input, processor, silentOutput, session
     try {
+      if (window.isSecureContext === false) throw new Error('Microphone recording needs HTTPS. Open the HTTPS link on your phone.')
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access is unavailable. Open this page over HTTPS in Safari or Chrome.')
       const context = audioContext()
-      await context.resume()
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const input = context.createMediaStreamSource(stream)
-      const processor = context.createScriptProcessor(4096, 1, 1)
-      const silentOutput = context.createGain()
+      // Request permission directly from the Record tap, before any async preparation.
+      const microphoneRequest = navigator.mediaDevices.getUserMedia({ audio: true }).then((acquired) => {
+        stream = acquired
+        if (request !== playbackRequestRef.current) acquired.getTracks().forEach((track) => track.stop())
+        else pendingRecordingStreamRef.current = acquired
+      })
+      await Promise.all([microphoneRequest, context.resume()])
+      if (request !== playbackRequestRef.current) return
+      const backingTracks = await preparePlaybackTracks(project.tracks.filter((track) => track.id !== targetTrack.id && !track.muted))
+      if (request !== playbackRequestRef.current) return
+      if (backingTracks.some(({ audio }) => !audio)) throw new Error('A backing track could not be prepared. Retry its conversion before recording.')
+      pendingRecordingStreamRef.current = null
+      input = context.createMediaStreamSource(stream)
+      processor = context.createScriptProcessor(4096, 1, 1)
+      silentOutput = context.createGain()
       silentOutput.gain.value = 0
       const chunks = []
       const start = 0
@@ -581,18 +598,26 @@ export default function App() {
       input.connect(processor)
       processor.connect(silentOutput)
       silentOutput.connect(context.destination)
-      const stop = () => {
+      const stop = (save = true) => {
         if (stopped) return
         stopped = true
         stopMetronome()
-        clearTimeout(recorderRef.current?.endTimer)
+        playSourcesRef.current.forEach(({ source }) => source.stop())
+        playSourcesRef.current = []
+        window.clearTimeout(session?.endTimer)
         cancelAnimationFrame(recordingFrameRef.current)
         processor.disconnect()
-        silentOutput.disconnect()
+        processor.onaudioprocess = null
         input.disconnect()
+        silentOutput.disconnect()
         stream.getTracks().forEach((track) => track.stop())
-        const duration = Math.min(SONG_LENGTH - start, context.currentTime - startedAt)
+        if (recorderRef.current === session) recorderRef.current = null
+        if (!save) return
+        setVolume(0)
+        setRecording(false)
+        const duration = Math.max(0, Math.min(SONG_LENGTH - start, context.currentTime - startedAt))
         const frameCount = Math.round(duration * context.sampleRate)
+        if (!frameCount || !chunks.length) return
         const recordingBuffer = context.createBuffer(1, frameCount, context.sampleRate)
         const recorded = recordingBuffer.getChannelData(0)
         let offset = 0
@@ -602,7 +627,6 @@ export default function App() {
           if (offset >= frameCount) break
         }
         const end = Math.min(SONG_LENGTH, start + duration)
-        const targetTrack = project.tracks.find((track) => track.id === project.selectedTrackId)
         const fullLength = Math.ceil(SONG_LENGTH * context.sampleRate)
         const audio = targetTrack?.audio
           ? copyBuffer(context, targetTrack.audio)
@@ -612,17 +636,18 @@ export default function App() {
           ...current,
           seek: end,
           tracks: current.tracks.map((track) => {
-            if (track.id !== current.selectedTrackId) return track
+            if (track.id !== targetTrack.id) return track
             return { ...track, audio, pianoAudio: null, pianoRenderVersion: null }
           }),
         }))
         if (isSampledInstrument(targetTrack?.instrument)) renderPianoTrack(targetTrack.id, audio)
-        setVolume(0)
-        setRecording(false)
-        recorderRef.current = null
       }
-      recorderRef.current = { stop, endTimer: window.setTimeout(stop, (SONG_LENGTH - start) * 1000) }
+      session = { stop, endTimer: window.setTimeout(stop, (SONG_LENGTH - start) * 1000) }
+      recorderRef.current = session
+      startTrackPlayback(context, backingTracks, startedAt, false)
       startMetronome(context, start, startedAt, false)
+      setArming(false)
+      setPreparing(false)
       setRecording(true)
       const moveSeek = () => {
         updateProject({ seek: Math.min(SONG_LENGTH, start + context.currentTime - startedAt) })
@@ -630,7 +655,21 @@ export default function App() {
       }
       recordingFrameRef.current = requestAnimationFrame(moveSeek)
     } catch (error) {
-      window.alert('Microphone access is required to record.')
+      session?.stop(false)
+      input?.disconnect()
+      processor?.disconnect()
+      silentOutput?.disconnect()
+      stream?.getTracks().forEach((track) => track.stop())
+      if (request === playbackRequestRef.current) {
+        stopPlayback()
+        setPlaybackError(error.name === 'NotAllowedError'
+          ? 'Microphone access was blocked. Allow Microphone in this site’s browser settings and your phone’s permissions, then tap Record again. If opened inside another app, try Safari or Chrome.'
+          : error.name === 'NotFoundError' ? 'No microphone was found. Connect or enable a microphone and try again.'
+          : error.name === 'NotReadableError' ? 'The microphone could not start. Close other apps using it and try again.'
+          : error.message || 'Could not start recording.')
+      }
+    } finally {
+      if (request === playbackRequestRef.current) { setArming(false); setPreparing(false) }
     }
   }
 
@@ -640,9 +679,6 @@ export default function App() {
       onClickCapture={(event) => {
         const button = event.target.closest('button')
         if (button && !button.disabled) interfaceSound()
-      }}
-      onInputCapture={(event) => {
-        if (event.target.matches('input[type="range"]') && event.target.id !== 'tempo' && !event.target.disabled) interfaceSound('tick')
       }}
       onChangeCapture={(event) => {
         if (event.target.matches('select') && !event.target.disabled) interfaceSound('tick')
@@ -685,23 +721,23 @@ export default function App() {
         </div>
         <div className="seek-ruler" aria-hidden="true"><span>00</span><span>15</span><span>30</span><span>45</span><span>60</span></div>
         <input className="seek" aria-label="Seek" type="range" min="0" max={SONG_LENGTH} step="0.1" value={project.seek}
-          disabled={recording} onChange={(event) => seekTo(Number(event.target.value))} />
+          disabled={captureBusy} onChange={(event) => seekTo(Number(event.target.value))} />
         {preparing && <output className="screen-message" role="status">Preparing…</output>}
         {playbackError && <output className="screen-message screen-error" role="alert">{playbackError}</output>}
       </section>
       <section className="transport" aria-label="Transport controls">
         <div className="tempo-control">
-          <TempoKnob value={project.bpm} disabled={recording || !ready} onChange={changeTempo} />
+          <TempoKnob value={project.bpm} disabled={captureBusy || !ready} onChange={changeTempo} />
           <div className="tempo-settings"><label htmlFor="tempo">TEMPO / METRONOME</label>
             <output>{project.bpm} BPM</output>
             <input id="tempo" aria-label="Metronome BPM" type="range" min="60" max="200" step="1" value={project.bpm}
-              disabled={recording || !ready} onChange={(event) => changeTempo(Number(event.target.value))} />
+              disabled={captureBusy || !ready} onChange={(event) => changeTempo(Number(event.target.value))} />
           </div>
         </div>
         <div className="transport-actions">
           <div className="transport-key"><span className="panel-label"><i className={recording ? 'led led-on' : 'led'} /> INPUT</span>
-            <button className={`key key-orange record-key ${recording ? 'key-active' : ''}`} type="button" onClick={toggleRecording} disabled={!selectedTrack || importing}>
-              {recording ? 'Stop recording' : 'Record'}
+            <button className={`key key-orange record-key ${recording ? 'key-active' : ''}`} type="button" onClick={toggleRecording} disabled={!ready || !selectedTrack || importing}>
+              {recording ? 'Stop recording' : arming ? 'Cancel recording' : 'Record'}
             </button>
           </div>
           <div className="transport-key"><span className="panel-label"><i className={playing ? 'led led-on' : 'led'} /> TRANSPORT</span>
@@ -714,10 +750,10 @@ export default function App() {
       <section className="tracks">
         <div className="track-section-heading"><h2>TRACK BANK <span>{String(project.tracks.length).padStart(2, '0')}</span></h2>
           <div className="bank-actions">
-        <button className="key key-small key-light" type="button" onClick={addTrack} disabled={recording}>Create track</button>
+        <button className="key key-small key-light" type="button" onClick={addTrack} disabled={captureBusy}>Create track</button>
         <input ref={fileInputRef} type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac,.webm" multiple hidden
           onChange={importTracks} />
-        <button className="key key-small" type="button" disabled={!ready || recording || importing} onClick={() => fileInputRef.current.click()}>
+        <button className="key key-small" type="button" disabled={!ready || captureBusy || importing} onClick={() => fileInputRef.current.click()}>
           {importing ? 'Importing…' : 'Upload tracks'}
         </button>
           </div>
@@ -725,14 +761,14 @@ export default function App() {
         <div className="track-list">
           {project.tracks.map((track, index) => (
             <div className={`track ${track.id === project.selectedTrackId ? 'track-selected' : ''} ${track.muted ? 'track-muted' : ''}`} key={track.id}>
-              <button className="key track-pad" data-number={String(index + 1).padStart(2, '0')} type="button" onClick={() => updateProject({ selectedTrackId: track.id })} disabled={recording}
+              <button className="key track-pad" data-number={String(index + 1).padStart(2, '0')} type="button" onClick={() => updateProject({ selectedTrackId: track.id })} disabled={captureBusy}
                 aria-label={`Select track ${index + 1}`} aria-pressed={track.id === project.selectedTrackId}><span className="track-button-label">Select</span></button>
               <div className="track-body">
               <div className="track-settings">
-              <InstrumentSelector value={track.instrument} disabled={recording} onChange={(instrument) => setInstrument(track.id, instrument)} />
+              <InstrumentSelector value={track.instrument} disabled={captureBusy} onChange={(instrument) => setInstrument(track.id, instrument)} />
               {isSampledInstrument(track.instrument) && <div className="octave-control">
                 <span className="panel-label">OCTAVE</span>
-                <button className="key key-small key-light octave-cycle" type="button" disabled={recording}
+                <button className="key key-small key-light octave-cycle" type="button" disabled={captureBusy}
                   aria-label={`${track.instrument} octave: ${track.pianoOctave ?? 0}. Click for next octave`}
                   title="Click to cycle octave" onClick={() => cyclePianoOctave(track)}>
                   {(track.pianoOctave ?? 0) > 0 ? `+${track.pianoOctave}` : track.pianoOctave ?? 0}
@@ -747,7 +783,7 @@ export default function App() {
               {isSampledInstrument(track.instrument) && pianoMessages[track.id]?.buffer === track.audio && (
                 <>
                   <output role="status">{pianoMessages[track.id].text}</output>
-                  {pianoMessages[track.id].error && <button className="key key-small" type="button" aria-label="Retry" title="Retry" disabled={recording} onClick={() => {
+                  {pianoMessages[track.id].error && <button className="key key-small" type="button" aria-label="Retry" title="Retry" disabled={captureBusy} onClick={() => {
                     stopPlayback()
                     invalidatePianoJob(track.id)
                     renderPianoTrack(track.id, track.audio)
@@ -756,10 +792,10 @@ export default function App() {
               )}
               </div>
               <div className="track-actions">
-              <button className="key key-small mute-key" type="button" onClick={() => toggleMute(track.id)} disabled={recording}
+              <button className="key key-small mute-key" type="button" onClick={() => toggleMute(track.id)} disabled={captureBusy}
                 aria-label={track.muted ? 'Unmute' : 'Mute'} title={track.muted ? 'Unmute' : 'Mute'} aria-pressed={track.muted}><TrackIcon name={track.muted ? 'muted' : 'volume'} /><span className="track-button-label">{track.muted ? 'Unmute' : 'Mute'}</span></button>
-              <button className="key key-small key-light" type="button" aria-label="Duplicate track" title="Duplicate track" onClick={() => duplicateTrack(track.id)} disabled={recording}><TrackIcon name="duplicate" /><span className="track-button-label">Duplicate track</span></button>
-              <button className="key key-small key-light" type="button" aria-label="Delete track" title="Delete track" onClick={() => deleteTrack(track.id)} disabled={recording || project.tracks.length === 1}><TrackIcon name="delete" /><span className="track-button-label">Delete track</span></button>
+              <button className="key key-small key-light" type="button" aria-label="Duplicate track" title="Duplicate track" onClick={() => duplicateTrack(track.id)} disabled={captureBusy}><TrackIcon name="duplicate" /><span className="track-button-label">Duplicate track</span></button>
+              <button className="key key-small key-light" type="button" aria-label="Delete track" title="Delete track" onClick={() => deleteTrack(track.id)} disabled={captureBusy || project.tracks.length === 1}><TrackIcon name="delete" /><span className="track-button-label">Delete track</span></button>
               </div>
               </div>
               </div>
@@ -769,7 +805,7 @@ export default function App() {
       </section>
       <footer className="export-controls">
         <button className="key key-small key-light" type="button" onClick={exportMidi}
-          disabled={!ready || recording || exporting || !project.tracks.some((track) => track.audio && !track.muted && isSampledInstrument(track.instrument))}
+          disabled={!ready || captureBusy || exporting || !project.tracks.some((track) => track.audio && !track.muted && isSampledInstrument(track.instrument))}
           title="Export notes from unmuted piano, guitar, electric guitar, and saxophone tracks">
           {exporting ? 'Exporting…' : 'Export MIDI'}
         </button>

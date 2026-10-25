@@ -17,15 +17,39 @@ globalThis.cancelAnimationFrame = () => {}
 window.alert = (message) => { throw new Error(message) }
 const { createRoot } = await import('react-dom/client')
 let sourceStarts = 0
+let recordingHarness = null
 class TestContext extends engine.OfflineAudioContext {
-  constructor() { super(1, 480000, 8000) }
+  constructor() {
+    super(1, 480000, 8000)
+    if (recordingHarness) {
+      const harness = recordingHarness
+      harness.context = this
+      Object.defineProperty(this, 'currentTime', { get: () => harness.time })
+    }
+  }
   async resume() {}
   async close() {}
   async decodeAudioData() { return this.createBuffer(2, 4000, 8000) }
+  createMediaStreamSource() { return this.createGain() }
+  createScriptProcessor(...args) {
+    const processor = super.createScriptProcessor(...args)
+    if (recordingHarness) recordingHarness.processor = processor
+    return processor
+  }
   createBufferSource() {
     const source = super.createBufferSource()
     const start = source.start.bind(source)
-    source.start = (...args) => { if (source.buffer?.duration >= 1) sourceStarts++; start(...args) }
+    const stop = source.stop.bind(source)
+    const harness = recordingHarness
+    let entry
+    source.start = (...args) => {
+      if (source.buffer?.duration >= 1) {
+        sourceStarts++
+        if (harness) { entry = { source, args, stopped: false }; harness.sources.push(entry) }
+      }
+      start(...args)
+    }
+    source.stop = (...args) => { if (entry) entry.stopped = true; stop(...args) }
     return source
   }
 }
@@ -62,7 +86,7 @@ async function instrument(value) {
   }
   assert.fail(`Instrument ${value} was not reachable`)
 }
-async function mount({ muted = false, initialInstrument = 'Piano', octaveDirection = 1 } = {}) {
+async function mount({ muted = false, initialInstrument = 'Piano', octaveDirection = 1, tracks, selectedTrackId = 'saved' } = {}) {
   globalThis.indexedDB = new IDBFactory()
   sourceStarts = 0
   globalThis.testAnalyze = async () => frames
@@ -71,7 +95,7 @@ async function mount({ muted = false, initialInstrument = 'Piano', octaveDirecti
     onStage('Rendering…')
     return new TestContext().createBuffer(1, 480000, 8000)
   }
-  await saveProject({ bpm: 120, seek: 0, selectedTrackId: 'saved', tracks: [{
+  await saveProject({ bpm: 120, seek: 0, selectedTrackId, tracks: tracks ?? [{
     id: 'saved', instrument: initialInstrument, muted, pianoOctaveDirection: octaveDirection,
     audio: { sampleRate: 8000, channels: [new Float32Array(4000).fill(0.1)] },
   }] })
@@ -441,6 +465,139 @@ test('MIDI export downloads generated notes even when sample rendering fails and
     URL.createObjectURL = originalCreate
     URL.revokeObjectURL = originalRevoke
     window.HTMLAnchorElement.prototype.click = originalClick
+  }
+})
+
+function recordedTrack(id, instrument, sample, muted = false) {
+  return { id, instrument, muted, audio: { sampleRate: 8000, channels: [new Float32Array(4000).fill(sample)] } }
+}
+
+function microphone(getUserMedia) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia } } })
+  return () => {
+    if (original) Object.defineProperty(globalThis, 'navigator', original)
+    else delete globalThis.navigator
+  }
+}
+
+test('recording plays other unmuted tracks in sync and stops them while preserving the unrecorded audio', async () => {
+  const harness = recordingHarness = { time: 0, sources: [] }
+  let micStopped = false
+  const restoreMic = microphone(async () => ({ getTracks: () => [{ stop() { micStopped = true } }] }))
+  const unmount = await mount({ selectedTrackId: 'input', tracks: [
+    recordedTrack('piano', 'Piano', 0.1), recordedTrack('vocal', 'Vocal', 0.3),
+    recordedTrack('muted', 'Vocal', 0.2, true), recordedTrack('input', 'Vocal', 0.4),
+  ] })
+  try {
+    globalThis.testRender = async () => {
+      const buffer = harness.context.createBuffer(1, 480000, 8000)
+      buffer.getChannelData(0).fill(0.6)
+      return buffer
+    }
+    await click('Record')
+    await waitFor(() => button('Stop recording'))
+    assert.equal(harness.sources.length, 3, 'two backing tracks and one metronome')
+    assert.ok(harness.sources.every(({ source, args }) => !source.loop && args[0] === 0 && args[1] === 0))
+    const samples = harness.sources.map(({ source }) => source.buffer.getChannelData(0)[0])
+    assert.ok(samples.includes(Math.fround(0.6)), 'uses the processed piano')
+    assert.ok(samples.includes(Math.fround(0.3)), 'plays the existing vocal')
+    assert.ok(!samples.includes(Math.fround(0.2)) && !samples.includes(Math.fround(0.4)))
+    assert.equal(button('Create track').disabled, true)
+    const recorded = harness.context.createBuffer(1, 1600, 8000)
+    recorded.getChannelData(0).fill(0.8)
+    harness.time = 0.2
+    await act(async () => harness.processor.onaudioprocess({ inputBuffer: recorded }))
+    await click('Stop recording')
+    assert.ok(harness.sources.every(({ stopped }) => stopped))
+    assert.ok(micStopped)
+    assert.equal(harness.processor.onaudioprocess, null)
+    await settle(300)
+    const saved = await loadProject()
+    const audio = saved.tracks.find((track) => track.id === 'input').audio.channels[0]
+    assert.equal(audio[0], Math.fround(0.8))
+    assert.equal(audio[1599], Math.fround(0.8))
+    assert.equal(audio[1600], Math.fround(0.4))
+    assert.equal(saved.tracks.find((track) => track.id === 'vocal').audio.channels[0][0], Math.fround(0.3))
+  } finally { await unmount(); restoreMic(); recordingHarness = null }
+})
+
+test('recording requests the microphone immediately and cancellation releases it during preparation', async () => {
+  recordingHarness = { time: 0, sources: [] }
+  let micRequests = 0, finish, stopped = false
+  const restoreMic = microphone(async () => { micRequests++; return { getTracks: () => [{ stop() { stopped = true } }] } })
+  const unmount = await mount({ selectedTrackId: 'input', tracks: [recordedTrack('backing', 'Piano', 0.1), recordedTrack('input', 'Vocal', 0.4)] })
+  try {
+    globalThis.testAnalyze = () => new Promise((resolve) => { finish = resolve })
+    await act(async () => {
+      button('Record').click()
+      assert.equal(micRequests, 1, 'permission is requested synchronously from the tap')
+    })
+    await waitFor(() => finish)
+    assert.ok(button('Cancel recording'))
+    assert.equal(button('Create track').disabled, true)
+    await click('Cancel recording')
+    assert.ok(stopped, 'cancellation releases the microphone before preparation finishes')
+    await act(async () => finish(frames))
+    await settle()
+    assert.equal(micRequests, 1)
+    assert.equal(recordingHarness.sources.length, 0)
+    assert.ok(button('Record'))
+    assert.equal(button('Create track').disabled, false)
+  } finally { await unmount(); restoreMic(); recordingHarness = null }
+})
+
+test('canceling a pending microphone request releases the eventual stream without starting playback', async () => {
+  recordingHarness = { time: 0, sources: [] }
+  let grant, stopped = false
+  const restoreMic = microphone(() => new Promise((resolve) => { grant = resolve }))
+  const unmount = await mount({ initialInstrument: 'Vocal' })
+  try {
+    await click('Record')
+    await waitFor(() => grant)
+    await click('Cancel')
+    await act(async () => grant({ getTracks: () => [{ stop() { stopped = true } }] }))
+    assert.ok(stopped)
+    assert.equal(recordingHarness.sources.length, 0)
+    assert.ok(button('Record'))
+  } finally { await unmount(); restoreMic(); recordingHarness = null }
+})
+
+test('blocked microphone access explains permissions and allows a new recording attempt', async () => {
+  let blocked = true
+  const restoreMic = microphone(async () => {
+    if (blocked) throw Object.assign(new Error('Denied'), { name: 'NotAllowedError' })
+    return { getTracks: () => [{ stop() {} }] }
+  })
+  const unmount = await mount({ initialInstrument: 'Vocal' })
+  try {
+    await click('Record')
+    assert.match(document.querySelector('[role="alert"]').textContent, /site’s browser settings/)
+    assert.ok(button('Record'))
+    blocked = false
+    await click('Record')
+    await waitFor(() => button('Stop recording'))
+    assert.equal(document.querySelector('[role="alert"]'), null)
+    await click('Stop recording')
+  } finally { await unmount(); restoreMic() }
+})
+
+test('insecure mobile pages explain HTTPS without requesting the microphone', async () => {
+  let requests = 0
+  const restoreMic = microphone(async () => { requests++ })
+  const original = Object.getOwnPropertyDescriptor(window, 'isSecureContext')
+  const unmount = await mount({ initialInstrument: 'Vocal' })
+  Object.defineProperty(window, 'isSecureContext', { configurable: true, value: false })
+  try {
+    await click('Record')
+    assert.match(document.querySelector('[role="alert"]').textContent, /HTTPS/)
+    assert.equal(requests, 0)
+    assert.ok(button('Record'))
+  } finally {
+    await unmount()
+    restoreMic()
+    if (original) Object.defineProperty(window, 'isSecureContext', original)
+    else delete window.isSecureContext
   }
 })
 
