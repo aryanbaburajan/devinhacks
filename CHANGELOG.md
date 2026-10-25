@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-25T07:44:58+05:30 — Place loading circle beside MIDI export
+
+- Changed: Removed the loading indicator's auto margin, reserved a nonshrinking 16px slot immediately left of Export MIDI in `src/App.css`, and raised its HTML surface to button-label depth in `src/Device3D.css`. Updated `README.md`.
+- Why: Keep the circle beside a visible control on mobile instead of at the opposite edge of the device, without moving the export button when loading starts.
+- Validation: All 3 targeted loading-state tests passed; production build and `git diff --check` passed. The existing large-chunk build warning remains.
+- Limitations: Mobile visual confirmation is pending; no connected browser was available. Existing tests verify loading-state behavior, not rendered CSS placement.
+
 ## 2026-10-25T07:42:44+05:30 — Stabilize desktop rotation layout
 
 - Changed: Reserved the root scrollbar gutter on desktop fine-pointer layouts in `src/Device3D.css`; documented desktop rotation in `README.md`.

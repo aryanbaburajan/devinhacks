@@ -75,6 +75,7 @@
 .is-3d .device-rail .rail-tab { background: transparent; box-shadow: none; transform: translateZ(2.6px); }
 .is-3d .rail-end i { background: transparent; }
 .is-3d .identity { transform: translateZ(.8px); }
+.is-3d .render-indicator { transform: translateZ(13.2px); }
 .is-3d .display-panel { transform: translateZ(var(--display-z, 9px)); }
 .is-3d .track-list { grid-template-columns: 1fr; }
 .is-3d .key,

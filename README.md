@@ -42,6 +42,8 @@ browser with Web Audio, WebGL, and IndexedDB support.
 
 recording starts at the beginning and overwrites the recorded portion of the
 selected track. use a new track to keep an earlier take.
+the loading circle immediately left of **Export MIDI** appears while a recording
+is being processed or instrument audio is being prepared, including on mobile.
 
 on desktop, drag the background to rotate the device; **Reset view** restores
 its starting angle. scrollbar space stays reserved so tilting does not change
