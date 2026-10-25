@@ -361,7 +361,7 @@ test('instrument button cycles through every instrument and wraps back to mic', 
   try {
     const picker = document.querySelector('.instrument-picker')
     picker.focus()
-    for (const value of ['Guitar', 'Electric Guitar', 'Piano', 'Saxophone', 'Vocal']) {
+    for (const value of ['Guitar', 'Electric Guitar', 'Piano', 'Vocal']) {
       await act(async () => picker.click())
       assert.ok(picker.getAttribute('aria-label').startsWith(`Instrument: ${value}.`))
       assert.equal(document.activeElement, picker)
@@ -374,7 +374,7 @@ test('instrument button cycles through every instrument and wraps back to mic', 
 })
 
 test('saved retired instruments become playable vocals without losing their recordings', async () => {
-  for (const initialInstrument of ['Vocal (autotuned)', 'Voice (autotuned)', 'Drum']) {
+  for (const initialInstrument of ['Vocal (autotuned)', 'Voice (autotuned)', 'Drum', 'Saxophone']) {
     const unmount = await mount({ initialInstrument })
     try {
       assert.equal(document.querySelector('.instrument-picker').getAttribute('aria-label'), 'Instrument: Vocal. Next: Guitar')

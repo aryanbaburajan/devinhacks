@@ -1,7 +1,7 @@
 import midiFile from 'midi-file'
 
 const TICKS_PER_BEAT = 480
-const programs = { Piano: 0, Guitar: 25, 'Electric Guitar': 27, Saxophone: 66 }
+const programs = { Piano: 0, Guitar: 25, 'Electric Guitar': 27 }
 
 export function createMidi({ tracks, bpm, duration = 60 }) {
   if (!Number.isFinite(bpm) || bpm <= 0 || !Number.isFinite(duration) || duration <= 0) throw new Error('Invalid song timing.')

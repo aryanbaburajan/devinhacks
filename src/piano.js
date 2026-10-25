@@ -34,21 +34,20 @@ export async function renderPianoEvents(events, { duration, sampleRate, loader, 
   const soundfont = {
     'Electric Guitar': 'electric_guitar_clean',
     Guitar: 'acoustic_guitar_steel',
-    Saxophone: 'tenor_sax',
   }[instrument]
   onStage('Loading samples…')
   const piano = soundfont
     ? Soundfont(context, { ...options, instrument: soundfont, kit: 'FluidR3_GM', extraGain: 1 })
     : SplendidGrandPiano(context, { ...options, decayTime: 2.4 })
   try {
-    await waitForSamples(piano.ready, signal, instrument === 'Saxophone' ? 60000 : 30000)
+    await waitForSamples(piano.ready, signal)
     signal?.throwIfAborted()
     onStage('Rendering…')
     events.forEach((event, index) => piano.start({
       ...event,
       duration: event.duration ?? Math.max(1.2, Math.min(3, (events[index + 1]?.time ?? duration) - event.time + 0.2)),
       velocity: 104,
-      ampRelease: instrument === 'Saxophone' ? 0.18 : soundfont ? 1.2 : 2.4,
+      ampRelease: soundfont ? 1.2 : 2.4,
     }))
     const audio = await context.startRendering()
     signal?.throwIfAborted()

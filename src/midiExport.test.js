@@ -15,13 +15,12 @@ test('MIDI preserves generated notes, beat timing, tempo, instruments and the 60
     { name: '2 Piano', instrument: 'Piano', events },
     { instrument: 'Guitar', events: [{ time: 59.5, duration: 3, note: 64 }] },
     { instrument: 'Electric Guitar', events: [] },
-    { instrument: 'Saxophone', events: [] },
   ] })
   assert.equal(new TextDecoder().decode(bytes.subarray(0, 4)), 'MThd')
   const midi = midiFile.parseMidi(bytes)
-  assert.deepEqual(midi.header, { format: 1, numTracks: 5, ticksPerBeat: 480 })
+  assert.deepEqual(midi.header, { format: 1, numTracks: 4, ticksPerBeat: 480 })
   assert.equal(midi.tracks[0].find((event) => event.type === 'setTempo').microsecondsPerBeat, 666667)
-  assert.deepEqual(midi.tracks.slice(1).map((track) => track.find((event) => event.type === 'programChange').programNumber), [0, 25, 27, 66])
+  assert.deepEqual(midi.tracks.slice(1).map((track) => track.find((event) => event.type === 'programChange').programNumber), [0, 25, 27])
   assert.equal(midi.tracks[1].find((event) => event.type === 'trackName').text, '2 Piano')
   const notes = timed(midi.tracks[1]).filter((event) => event.type === 'noteOn' || event.type === 'noteOff')
   assert.deepEqual(notes.map(({ tick, type, noteNumber }) => [tick, type, noteNumber]), [

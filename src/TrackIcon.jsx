@@ -11,7 +11,6 @@ export default function TrackIcon({ name }) {
     guitar: 'm14 10 6-7 2 2-7 6M14 10c-4-2-3 2-6 2s-6 3-4 7 6 3 8 0 0-4 3-6l-1-3ZM8 16h.01',
     electric: 'm14 10 6-7 2 2-7 6M14 10l-4-1-1 4-6 3 3 5 6-2 3-6-1-3ZM8 16h.01',
     piano: 'M3 4h18v16H3V4m6 0v16m6-16v16M7 4v8h4V4m2 0v8h4V4',
-    sax: 'M10 3h5v10c0 8-11 9-11 2V9l5 3v3c0 2 3 2 3-1V6h-2V3m5 6h3m-3 4h3M4 9l5 3',
   }
   return <svg className="track-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>
 }

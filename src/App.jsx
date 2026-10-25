@@ -13,7 +13,7 @@ import { createTrackId } from './trackId.js'
 
 const SONG_LENGTH = 60
 const PIANO_RENDER_VERSION = 11
-const isSampledInstrument = (instrument) => ['Piano', 'Guitar', 'Electric Guitar', 'Saxophone'].includes(instrument)
+const isSampledInstrument = (instrument) => ['Piano', 'Guitar', 'Electric Guitar'].includes(instrument)
 // Recreated on hot reload along with the renderer, so old silent renders cannot survive a fix.
 const pianoRenderCache = new WeakMap()
 
@@ -54,7 +54,7 @@ function fromStoredAudio(context, audio) {
 function restoreTrack(context, track) {
   // Retired instrument choices keep their original microphone recording.
   const { autotunedAudio, ...savedTrack } = track
-  track = { ...savedTrack, instrument: ['Vocal (autotuned)', 'Voice (autotuned)', 'Drum'].includes(track.instrument) ? 'Vocal' : track.instrument }
+  track = { ...savedTrack, instrument: ['Vocal (autotuned)', 'Voice (autotuned)', 'Drum', 'Saxophone'].includes(track.instrument) ? 'Vocal' : track.instrument }
   track = { ...track, pianoScale: PIANO_SCALES.some((scale) => scale.value === track.pianoScale)
     ? track.pianoScale : DEFAULT_PIANO_SCALE }
   track = { ...track, pianoOctave: Number.isFinite(track.pianoOctave)
@@ -806,7 +806,7 @@ export default function App() {
       <footer className="export-controls">
         <button className="key key-small key-light" type="button" onClick={exportMidi}
           disabled={!ready || captureBusy || exporting || !project.tracks.some((track) => track.audio && !track.muted && isSampledInstrument(track.instrument))}
-          title="Export notes from unmuted piano, guitar, electric guitar, and saxophone tracks">
+          title="Export notes from unmuted piano, guitar, and electric guitar tracks">
           {exporting ? 'Exporting…' : 'Export MIDI'}
         </button>
       </footer>

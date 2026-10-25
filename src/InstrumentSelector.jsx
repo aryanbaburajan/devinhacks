@@ -5,7 +5,6 @@ const instruments = [
   { value: 'Guitar', label: 'Guitar', icon: 'guitar' },
   { value: 'Electric Guitar', label: 'Electric', icon: 'electric' },
   { value: 'Piano', label: 'Piano', icon: 'piano' },
-  { value: 'Saxophone', label: 'Sax', icon: 'sax' },
 ]
 
 export default function InstrumentSelector({ value, onChange, disabled }) {
