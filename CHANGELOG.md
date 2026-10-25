@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-25T11:36:24+05:30 — Use phone-width layout in desktop browsers
+
+- Changed: Capped the device pose at 420px in `src/Device3D.css` and made the existing compact rules in `src/App.css` and `src/Device3D.css` respond to device width. Moved Reset view beside the narrower device, updated the scene fixture width, and documented the layout in `README.md`.
+- Why: Keep the mobile proportions and compact controls when the browser window is wide.
+- Validation: Inspected headless Chrome renders at 1440px and 390px viewport widths; all 65 tests, the production build, and `git diff --check` passed. The existing large generated 3D chunk warning remains.
+- Limitations: Chrome renders were visual checks; other browsers and device sizes were not inspected.
+
 ## 2026-10-25T11:34:53+05:30 — Stabilize control hit targets in 3D view
 
 - Changed: Kept native buttons, sliders, selectors, and the tempo dial near their panel face in `src/Device3D.css`; removed obsolete CSS depth writes from `src/deviceScene.js` and updated its visual press test and the 3D interaction note in `README.md`.

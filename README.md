@@ -49,7 +49,9 @@ on desktop, drag the background to rotate the device; **Reset view** restores
 its starting angle. scrollbar space stays reserved so tilting does not change
 the canvas width. buttons, sliders, and selectors sit near their panel face
 to reduce missed clicks while the 3d model supplies their raised appearance.
-phone tilt behavior is unchanged.
+the device stays at a phone-like width (up to 420px) even in a wide browser
+window; its controls use the compact layout at that width. phone tilt behavior
+is unchanged.
 
 ## 03 / specifications
 

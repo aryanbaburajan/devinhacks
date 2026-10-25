@@ -15,7 +15,7 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
   const screenWidth = mode === 'mobile' ? 390 : 1440
   dom.window.innerWidth = screenWidth
   dom.window.devicePixelRatio = 2
-  for (const [element, width, height] of [[stage, screenWidth, 700], [app, Math.min(screenWidth, 1100), 700], [button, 80, 40]]) {
+  for (const [element, width, height] of [[stage, screenWidth, 700], [app, Math.min(screenWidth, 420), 700], [button, 80, 40]]) {
     Object.defineProperties(element, { offsetWidth: { value: width }, offsetHeight: { value: height }, clientWidth: { value: width } })
   }
   Object.defineProperty(button, 'offsetParent', { value: app })

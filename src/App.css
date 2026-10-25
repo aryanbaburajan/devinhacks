@@ -22,7 +22,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(1100px, 100%);
+  width: 100%;
+  container: device / inline-size;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
@@ -143,8 +144,7 @@ select { width: 100%; padding: 7px 24px 7px 9px; min-height: 32px; border: 1px s
 @keyframes render-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .render-spinner { animation: none; } }
 .export-controls .key { min-height: 36px; }
-@media (max-width: 680px) {
-  .app { width: 100%; }
+@container device (max-width: 680px) {
   .transport { flex-wrap: wrap; }
   .track-section-heading { flex-wrap: wrap; }
   .track-settings { min-width: 0; }
@@ -173,7 +173,7 @@ select { width: 100%; padding: 7px 24px 7px 9px; min-height: 32px; border: 1px s
   .track-settings { gap: 10px; }
   .track-lower { align-items: start; flex-direction: column; }
 }
-@media (max-width: 420px) {
+@container device (max-width: 420px) {
   .display-topline { font-size: 7px; letter-spacing: .4px; gap: 5px; }
   .time-display > output { font-size: 30px; }
   .time-display small { font-size: 19px; }
@@ -190,18 +190,10 @@ select { width: 100%; padding: 7px 24px 7px 9px; min-height: 32px; border: 1px s
   .track-actions { gap: 6px; flex-wrap: wrap; }
   .track-actions .key-small { font-size: 11px; padding: 5px 7px; }
 }
-@media (min-width: 1000px) {
-  .display-panel { padding: 22px 40px 20px; }
-  .display-main { gap: 40px; }
-  .time-display > output { font-size: 54px; }
-  .waveform-display svg { height: 65px; }
-  .transport { padding-left: 40px; padding-right: 40px; }
-  .tracks { padding: 28px 40px 40px; }
-}
 .track-icon { display: block; width: 18px; height: 18px; flex-shrink: 0; }
 .instrument-picker { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 36px; padding: 7px 10px; font-size: 11px; }
 .track-actions .track-icon, .track-status .track-icon { display: none; }
-@media (max-width: 680px) {
+@container device (max-width: 680px) {
   .track-list { gap: 10px; }
   .track { flex-direction: row; align-items: center; flex-wrap: nowrap; gap: 4px; padding: 7px 6px; }
   .track-body, .track-lower { display: contents; }
