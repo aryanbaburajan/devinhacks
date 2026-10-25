@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-25T11:42:53+05:30 — Zoom the 3D device with the scroll wheel
+
+- Changed: Added wheel zoom on the desktop device in `src/deviceScene.js`, scaling its HTML pose and Three.js camera together from 0.8× to 1.6×. The canvas height follows the zoom without rebuilding the chassis on every wheel event. Updated scene tests and `README.md`.
+- Why: Let users zoom directly over the device without adding another visible control.
+- Validation: In headless Chrome, a wheel event grew the pose from 1× to 1.25× and the canvas from 950px to 1148px; the enlarged controls remained visually aligned. All 65 tests, the production build, and `git diff --check` passed. The existing large generated 3D chunk warning remains.
+- Limitations: At high zoom, the device may extend beyond the viewport; scroll outside it to reach lower content. Mobile keeps native page and pinch behavior.
+
 ## 2026-10-25T11:39:22+05:30 — Enlarge and fit the content-driven device
 
 - Changed: Widened the centered device from 420px to 720px in `src/Device3D.css`, kept compact controls at that width in `src/App.css`, and removed viewport-height minimums so the chassis grows with its tracks. Added vertical canvas room for the rotated shell in `src/deviceScene.js`, removed the desktop Reset view button from `src/Device3D.jsx`, updated layout and resize tests, and revised `README.md`.

@@ -8,7 +8,7 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content he
   const names = ['window', 'document', 'ResizeObserver', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'testDeviceRenderer']
   const original = Object.fromEntries(names.map((key) => [key, globalThis[key]]))
   const frames = new Map()
-  let nextId = 0, draws = 0, shadowPasses = 0, meshes, pixelRatio, onResize
+  let nextId = 0, draws = 0, shadowPasses = 0, meshes, pixelRatio, cameraZoom, onResize
   let appHeight = 700
   const document = dom.window.document
   const stage = document.getElementById('stage'), viewport = document.getElementById('viewport'), pose = document.getElementById('pose')
@@ -24,8 +24,9 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content he
     domElement: document.createElement('canvas'), capabilities: { maxTextureSize: 4096 }, shadowMap: {},
     getContext: () => ({ MAX_RENDERBUFFER_SIZE: 1, getParameter: () => 4096 }),
     setPixelRatio(value) { pixelRatio = value }, setSize() {}, dispose() {},
-    render(scene) {
+    render(scene, camera) {
       draws++
+      cameraZoom = camera.zoom
       if (this.shadowMap.needsUpdate) { shadowPasses++; this.shadowMap.needsUpdate = false }
       const currentMeshes = []
       scene.traverse((object) => { if (object.isMesh) currentMeshes.push(object) })
@@ -104,6 +105,20 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content he
       meshes = undefined // A size change rebuilds the physical chassis.
       frame(time)
       assert.equal(stage.style.height, `${height + (mode === 'desktop' ? 160 : 0)}px`)
+    }
+    const wheel = new dom.window.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -80 })
+    app.dispatchEvent(wheel)
+    assert.equal(wheel.defaultPrevented, mode === 'desktop')
+    if (mode === 'desktop') {
+      assert.equal(controller.zoom, 1.1)
+      frame(1064)
+      assert.equal(cameraZoom, 1.1)
+      assert.ok(pose.style.transform.includes('scale3d(1.1, 1.1, 1)'))
+      assert.equal(stage.style.height, `${Math.ceil(appHeight * 1.1) + 160}px`)
+      assert.equal(controller.zoomBy(10), 1.6)
+      assert.equal(controller.zoomBy(-10), 0.8)
+    } else {
+      assert.equal(controller.zoom, 1)
     }
   } finally {
     controller?.dispose()

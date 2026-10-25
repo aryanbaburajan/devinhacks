@@ -49,7 +49,8 @@ on desktop, drag the background to rotate the device. focus an edge grip and
 press Home to restore its starting angle. scrollbar space stays reserved so
 tilting does not change the canvas width. buttons, sliders, and selectors sit
 near their panel face to reduce missed clicks while the 3d model supplies
-their raised appearance.
+their raised appearance. scroll over the device to zoom its 3d view in or out
+(0.8×–1.6×); scroll beside it to move through a long page.
 the centered device is up to 720px wide in a browser while retaining the
 compact control layout. its height follows the content and grows as tracks
 are added. phone tilt behavior is unchanged.
