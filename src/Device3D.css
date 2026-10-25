@@ -1,4 +1,8 @@
 .device-view { position: relative; min-height: 100vh; outline: none; }
+@media (min-width: 681px) and (pointer: fine) {
+  /* Tilted overflow must not toggle the scrollbar and recenter the canvas. */
+  :root { scrollbar-gutter: stable; }
+}
 .rotation-backdrop { position: absolute; inset: 0; cursor: grab; touch-action: none; }
 .is-3d .app { cursor: grab; }
 .is-rotating .rotation-backdrop, .is-rotating .app { cursor: grabbing; }

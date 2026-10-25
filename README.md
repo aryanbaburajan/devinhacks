@@ -43,6 +43,10 @@ browser with Web Audio, WebGL, and IndexedDB support.
 recording starts at the beginning and overwrites the recorded portion of the
 selected track. use a new track to keep an earlier take.
 
+on desktop, drag the background to rotate the device; **Reset view** restores
+its starting angle. scrollbar space stays reserved so tilting does not change
+the canvas width. phone tilt behavior is unchanged.
+
 ## 03 / specifications
 
 | component | detail |

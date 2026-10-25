@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-25T07:42:44+05:30 — Stabilize desktop rotation layout
+
+- Changed: Reserved the root scrollbar gutter on desktop fine-pointer layouts in `src/Device3D.css`; documented desktop rotation in `README.md`.
+- Why: Rotated overflow can toggle a classic scrollbar, resize the canvas, and recenter the device near the front-facing angle. Reserving the gutter addresses this suspected cause without clipping the device or changing phone tilt.
+- Validation: All 7 existing geometry/scene tests passed, including desktop and mobile rotation checks; `npm run build` and `git diff --check` passed. The build retains its existing large-chunk warning.
+- Limitations: No connected browser was available to reproduce the reported visual jerk. These tests exercise scene math and renderer calls, not browser scrollbar layout; human visual confirmation is pending. Older browsers without `scrollbar-gutter` support retain their previous behavior.
+
 ## 2026-10-25T07:33:14+05:30 — Restore hackathon documentation for S-251X
 
 - Changed: Added the requested template's `AGENTS.md` and `RULES.md`, restored prior `AI_USAGE.md` and changelog entries, filled `SUBMISSION.md` with current project details, and added missing overview, environment, source, and submission information to `README.md`. Updated retired instrument references while retaining the README's existing style and instructions.
