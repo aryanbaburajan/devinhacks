@@ -8,7 +8,7 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
   const names = ['window', 'document', 'ResizeObserver', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'testDeviceRenderer']
   const original = Object.fromEntries(names.map((key) => [key, globalThis[key]]))
   const frames = new Map()
-  let nextId = 0, draws = 0, shadowPasses = 0, styleWrites = 0, meshes, pixelRatio
+  let nextId = 0, draws = 0, shadowPasses = 0, meshes, pixelRatio
   const document = dom.window.document
   const stage = document.getElementById('stage'), viewport = document.getElementById('viewport'), pose = document.getElementById('pose')
   const app = document.querySelector('.app'), button = document.querySelector('button')
@@ -19,8 +19,6 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
     Object.defineProperties(element, { offsetWidth: { value: width }, offsetHeight: { value: height }, clientWidth: { value: width } })
   }
   Object.defineProperty(button, 'offsetParent', { value: app })
-  const writeStyle = button.style.setProperty.bind(button.style)
-  button.style.setProperty = (...args) => { styleWrites++; writeStyle(...args) }
   const renderer = {
     domElement: document.createElement('canvas'), capabilities: { maxTextureSize: 4096 }, shadowMap: {},
     getContext: () => ({ MAX_RENDERBUFFER_SIZE: 1, getParameter: () => 4096 }),
@@ -52,7 +50,9 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
     controller = createDeviceScene(stage, viewport, pose, app, () => assert.fail('Scene failed'))
     frame(0)
     assert.equal(shadowPasses, 1)
-    assert.equal(styleWrites, 1)
+    const keyCap = meshes.find((mesh) => mesh.material?.color?.getHex() === 0x292d26)
+    assert.ok(keyCap, 'button cap should be rendered in the 3D scene')
+    const raisedPosition = keyCap.position.z
     const restingRatio = pixelRatio
     if (mode === 'desktop') controller.hold()
     for (let index = 1; index <= 60; index++) {
@@ -66,7 +66,7 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
     }
     assert.equal(draws, 61)
     assert.equal(shadowPasses, 1)
-    assert.equal(styleWrites, 1)
+    assert.equal(keyCap.position.z, raisedPosition)
     assert.equal(frames.size, 0)
     const x = mode === 'mobile' ? 8 : 10
     assert.equal(controller.rotation.x, x)
@@ -92,11 +92,11 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
     button.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true }))
     frame(1000)
     assert.equal(shadowPasses, 2)
-    assert.equal(button.style.getPropertyValue('--surface-z'), '10.2px')
+    assert.equal(keyCap.position.z, raisedPosition - 3)
     dom.window.dispatchEvent(new dom.window.Event('pointerup'))
     frame(1016)
     assert.equal(shadowPasses, 3)
-    assert.equal(button.style.getPropertyValue('--surface-z'), '13.2px')
+    assert.equal(keyCap.position.z, raisedPosition)
   } finally {
     controller?.dispose()
     await server.close()

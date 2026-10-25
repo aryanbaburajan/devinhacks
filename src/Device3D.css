@@ -86,16 +86,18 @@
   background: transparent;
   border-color: transparent;
   box-shadow: none;
-  transform: translateZ(var(--surface-z, 13.2px));
+  /* The Three.js mesh supplies the raised key. Keeping this native control
+     near the face makes its browser hit target reliable at every tilt. */
+  transform: translateZ(.2px);
   transition: none;
   filter: none;
 }
-.is-3d select { background-color: transparent; box-shadow: none; border-color: transparent; transform: translateZ(var(--surface-z, 4.2px)); }
+.is-3d select { background-color: transparent; box-shadow: none; border-color: transparent; transform: translateZ(.2px); }
 .is-3d select option { color: #d1ddc2; background: #253320; }
-.is-3d input[type='range'], .is-3d .display-panel .seek { background: transparent; box-shadow: none; transform: translateZ(10px); }
+.is-3d input[type='range'], .is-3d .display-panel .seek { background: transparent; box-shadow: none; transform: translateZ(.2px); }
 .is-3d input[type='range']::-webkit-slider-thumb { background: transparent; box-shadow: none; border-color: transparent; }
 .is-3d input[type='range']::-moz-range-thumb { background: transparent; box-shadow: none; border-color: transparent; }
-.is-3d .tempo-dial { background: transparent; border-color: transparent; box-shadow: none; transform: translateZ(30px); }
+.is-3d .tempo-dial { background: transparent; border-color: transparent; box-shadow: none; transform: translateZ(.2px); }
 .is-3d .tempo-dial::before, .is-3d .tempo-dial i { visibility: hidden; }
 .rotation-grip {
   position: absolute;

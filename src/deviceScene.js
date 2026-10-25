@@ -298,10 +298,6 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
         const down = element === pressed || element.classList.contains('key-active') || element.classList.contains('mute-key') && element.getAttribute('aria-pressed') === 'true'
         const depression = down ? 3 : 0
         control.mesh.position.z = control.top - control.depth / 2 - depression
-        if (control.depression !== depression) {
-          control.depression = depression
-          element.style.setProperty('--surface-z', `${control.top - depression + 0.2}px`)
-        }
         control.mesh.material.emissive.set(element === focused ? 0x272b20 : 0x000000)
       } else if (control.kind === 'range') {
         const minimum = Number(element.min), maximum = Number(element.max)
@@ -435,7 +431,6 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
       viewport.style.perspective = ''
       pose.style.transform = ''
       app.style.removeProperty('--display-z')
-      for (const element of app.querySelectorAll('[style]')) element.style.removeProperty('--surface-z')
     },
   }
   return controller

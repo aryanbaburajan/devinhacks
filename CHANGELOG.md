@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-25T11:34:53+05:30 — Stabilize control hit targets in 3D view
+
+- Changed: Kept native buttons, sliders, selectors, and the tempo dial near their panel face in `src/Device3D.css`; removed obsolete CSS depth writes from `src/deviceScene.js` and updated its visual press test and the 3D interaction note in `README.md`.
+- Why: The HTML controls were translated to different depths inside the rotated CSS 3D tree, which can cause browser hit-testing to miss a visible control. Three.js continues to render the raised physical controls.
+- Validation: `npm test` passed all 65 tests; `npm run build` and `git diff --check` passed. The existing large generated 3D chunk warning remains.
+- Limitations: The cause is inferred from the CSS 3D layout; physical click behavior needs confirmation in the affected browser. A browser surface was unavailable in this environment.
+
 ## 2026-10-25T07:44:58+05:30 — Place loading circle beside MIDI export
 
 - Changed: Removed the loading indicator's auto margin, reserved a nonshrinking 16px slot immediately left of Export MIDI in `src/App.css`, and raised its HTML surface to button-label depth in `src/Device3D.css`. Updated `README.md`.
