@@ -108,6 +108,7 @@ async function mount({ muted = false, initialInstrument = 'Piano', octaveDirecti
 test('restored muted tracks prepare eagerly and BPM changes rerender beat timing', async () => {
   const unmount = await mount({ muted: true })
   try {
+    assert.ok(document.querySelector('.render-spinner[aria-label="Rendering audio"]'))
     let analyses = 0
     globalThis.testAnalyze = async () => { analyses++; return frames }
     const renderedDurations = []
@@ -116,6 +117,7 @@ test('restored muted tracks prepare eagerly and BPM changes rerender beat timing
       return new TestContext().createBuffer(1, 480000, 8000)
     }
     await waitFor(() => document.body.textContent.includes('Ready · 1 notes'))
+    assert.equal(document.querySelector('.render-spinner'), null)
     assert.equal(analyses, 1)
     await act(async () => {
       const slider = document.querySelector('[aria-label="Metronome BPM"]')
@@ -123,9 +125,11 @@ test('restored muted tracks prepare eagerly and BPM changes rerender beat timing
       slider.dispatchEvent(new window.Event('input', { bubbles: true }))
       slider.dispatchEvent(new window.Event('change', { bubbles: true }))
     })
+    assert.ok(document.querySelector('.render-spinner[aria-label="Rendering audio"]'))
     await settle(300)
     assert.equal(analyses, 2)
     assert.deepEqual(renderedDurations, [0.5, 0.4])
+    assert.equal(document.querySelector('.render-spinner'), null)
     assert.ok(document.body.textContent.includes('150 BPM'))
     const stored = await loadProject()
     assert.equal(stored.bpm, 150)
@@ -139,6 +143,7 @@ test('failed audible conversion blocks playback and Retry starts a new preparati
   try {
     globalThis.testRender = async () => { throw new Error('Sample download failed') }
     await waitFor(() => button('Retry'))
+    assert.equal(document.querySelector('.render-spinner'), null)
     await click('Play')
     assert.equal(sourceStarts, 0)
     assert.ok(document.body.textContent.includes('could not be prepared'))
@@ -207,6 +212,7 @@ test('imported files add locally saved tracks without replacing existing recordi
     assert.equal(stored.tracks[0].audio.channels[0][0], Math.fround(0.1))
     assert.equal(stored.tracks[1].audio.channels.length, 2)
     assert.equal(stored.tracks[1].audio.channels[0].length, 480000)
+    assert.equal(stored.tracks[1].audioEnd, 0.5)
   } finally { await unmount() }
 })
 
@@ -483,6 +489,13 @@ function microphone(getUserMedia) {
 
 test('recording plays other unmuted tracks in sync and stops them while preserving the unrecorded audio', async () => {
   const harness = recordingHarness = { time: 0, sources: [] }
+  const oldRaf = globalThis.requestAnimationFrame
+  const oldTimeout = window.setTimeout
+  let lateRecordingFrame
+  globalThis.requestAnimationFrame = (callback) => {
+    if (callback.name === 'moveSeek') lateRecordingFrame = callback
+    return 1
+  }
   let micStopped = false
   const restoreMic = microphone(async () => ({ getTracks: () => [{ stop() { micStopped = true } }] }))
   const unmount = await mount({ selectedTrackId: 'input', tracks: [
@@ -508,18 +521,84 @@ test('recording plays other unmuted tracks in sync and stops them while preservi
     recorded.getChannelData(0).fill(0.8)
     harness.time = 0.2
     await act(async () => harness.processor.onaudioprocess({ inputBuffer: recorded }))
+    let finalize
+    window.setTimeout = (callback, delay, ...args) => {
+      if (delay === 20) { finalize = callback; return -1 }
+      return oldTimeout.call(window, callback, delay, ...args)
+    }
     await click('Stop recording')
+    assert.equal(Number(document.querySelector('[aria-label="Seek"]').value), 0.2)
+    assert.ok(document.querySelector('.render-spinner'))
+    assert.equal(button('Play').disabled, true)
+    harness.time = 2
+    await act(async () => lateRecordingFrame())
+    assert.equal(Number(document.querySelector('[aria-label="Seek"]').value), 0.2, 'late frames cannot move a stopped seek')
     assert.ok(harness.sources.every(({ stopped }) => stopped))
     assert.ok(micStopped)
     assert.equal(harness.processor.onaudioprocess, null)
+    window.setTimeout = oldTimeout
+    await act(async () => finalize())
     await settle(300)
     const saved = await loadProject()
+    assert.equal(saved.tracks.find((track) => track.id === 'input').audioEnd, 0.5, 'short overwrite preserves the old endpoint')
+    assert.equal(document.querySelector('.render-spinner'), null)
     const audio = saved.tracks.find((track) => track.id === 'input').audio.channels[0]
     assert.equal(audio[0], Math.fround(0.8))
     assert.equal(audio[1599], Math.fround(0.8))
     assert.equal(audio[1600], Math.fround(0.4))
     assert.equal(saved.tracks.find((track) => track.id === 'vocal').audio.channels[0][0], Math.fround(0.3))
+  } finally { window.setTimeout = oldTimeout; await unmount(); restoreMic(); recordingHarness = null; globalThis.requestAnimationFrame = oldRaf }
+})
+
+test('the loading circle stays visible from recording finalization through instrument rendering', async () => {
+  const harness = recordingHarness = { time: 0, sources: [] }
+  const restoreMic = microphone(async () => ({ getTracks: () => [{ stop() {} }] }))
+  const unmount = await mount({ tracks: [{ id: 'saved', instrument: 'Piano', audio: null }] })
+  let finish
+  try {
+    globalThis.testAnalyze = () => new Promise((resolve) => { finish = resolve })
+    await click('Record')
+    await waitFor(() => button('Stop recording'))
+    const input = harness.context.createBuffer(1, 1600, 8000)
+    input.getChannelData(0).fill(0.2)
+    harness.time = 0.2
+    await act(async () => harness.processor.onaudioprocess({ inputBuffer: input }))
+    await click('Stop recording')
+    assert.ok(document.querySelector('.render-spinner'))
+    await waitFor(() => finish)
+    assert.ok(document.querySelector('.render-spinner'))
+    assert.equal(Number(document.querySelector('[aria-label="Seek"]').value), 0.2)
+    await act(async () => finish(frames))
+    await waitFor(() => !document.querySelector('.render-spinner'))
+    await settle(300)
+    assert.equal((await loadProject()).tracks[0].audioEnd, 0.2)
   } finally { await unmount(); restoreMic(); recordingHarness = null }
+})
+
+test('playback sources, metronome and seek loop together at the recorded endpoint', async () => {
+  const harness = recordingHarness = { time: 0, sources: [] }
+  const oldRaf = globalThis.requestAnimationFrame
+  let playbackFrame
+  const unmount = await mount({ tracks: [
+    { ...recordedTrack('saved', 'Vocal', 0.1), audioEnd: 2 },
+    { ...recordedTrack('long', 'Vocal', 0.2), audioEnd: 3.5 },
+  ] })
+  globalThis.requestAnimationFrame = (callback) => {
+    if (callback.name === 'tick') playbackFrame = callback
+    return 1
+  }
+  try {
+    await click('Play')
+    assert.equal(harness.sources.length, 3)
+    assert.ok(harness.sources.every(({ source }) => source.loop && source.loopEnd === 3.5))
+    harness.time = 3.75
+    await act(async () => playbackFrame())
+    assert.ok(Math.abs(Number(document.querySelector('[aria-label="Seek"]').value) - 0.2) < 0.001)
+    await click('Stop')
+    harness.time = 4
+    await act(async () => playbackFrame())
+    assert.ok(Math.abs(Number(document.querySelector('[aria-label="Seek"]').value) - 0.2) < 0.001)
+  } finally { await unmount(); recordingHarness = null; globalThis.requestAnimationFrame = oldRaf }
 })
 
 test('recording requests the microphone immediately and cancellation releases it during preparation', async () => {

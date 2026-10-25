@@ -10,10 +10,11 @@ import Device3D from './Device3D.jsx'
 import TrackIcon from './TrackIcon.jsx'
 import InstrumentSelector from './InstrumentSelector.jsx'
 import { createTrackId } from './trackId.js'
+import { SONG_LENGTH, recordedEnd, playbackLength } from './audioTimeline.js'
 
-const SONG_LENGTH = 60
-const PIANO_RENDER_VERSION = 11
+const PIANO_RENDER_VERSION = 13
 const isSampledInstrument = (instrument) => ['Piano', 'Guitar', 'Electric Guitar'].includes(instrument)
+const hasRenderedAudio = (track, bpm) => track.pianoAudio && track.pianoBpm === bpm && track.renderedInstrument === track.instrument && track.pianoRenderVersion === PIANO_RENDER_VERSION && track.renderedPianoOctave === (track.pianoOctave ?? 0) && track.renderedPianoScale === (track.pianoScale ?? DEFAULT_PIANO_SCALE)
 // Recreated on hot reload along with the renderer, so old silent renders cannot survive a fix.
 const pianoRenderCache = new WeakMap()
 
@@ -23,6 +24,7 @@ function newTrack() {
     instrument: 'Vocal',
     muted: false,
     audio: null,
+    audioEnd: 0,
     pianoAudio: null,
     pianoRenderVersion: null,
     pianoOctave: 0,
@@ -65,6 +67,7 @@ function restoreTrack(context, track) {
       ...track,
       muted: track.muted ?? false,
       audio: fromStoredAudio(context, track.audio),
+      audioEnd: recordedEnd(track),
       pianoAudio: null,
       pianoRenderVersion: null,
     }
@@ -93,6 +96,7 @@ function restoreTrack(context, track) {
     pianoScale: track.pianoScale,
     muted: track.muted ?? false,
     audio,
+    audioEnd: Math.min(SONG_LENGTH, track.clips.reduce((end, clip) => Math.max(end, clip.start + clip.channels[0].length / clip.sampleRate), 0)),
     pianoAudio: null,
     pianoRenderVersion: null,
   }
@@ -111,7 +115,8 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [recording, setRecording] = useState(false)
   const [arming, setArming] = useState(false)
-  const captureBusy = recording || arming
+  const [finalizing, setFinalizing] = useState(false)
+  const captureBusy = recording || arming || finalizing
   const [playing, setPlaying] = useState(false)
   const [preparing, setPreparing] = useState(false)
   const [playbackError, setPlaybackError] = useState('')
@@ -122,8 +127,12 @@ export default function App() {
   const [volume, setVolume] = useState(0)
   const [pianoMessages, setPianoMessages] = useState({})
   const renderingTrackIds = Object.keys(pianoMessages).filter((id) => pianoMessages[id]?.loading)
+  const waitingForRender = project.tracks.some((track) => track.audio && isSampledInstrument(track.instrument)
+    && !hasRenderedAudio(track, project.bpm)
+    && !(pianoMessages[track.id]?.buffer === track.audio && pianoMessages[track.id]?.error))
   const audioContextRef = useRef(null)
   const recorderRef = useRef(null)
+  const finalizeTimerRef = useRef(null)
   const pendingRecordingStreamRef = useRef(null)
   const recordingFrameRef = useRef(null)
   const playSourcesRef = useRef([])
@@ -175,7 +184,7 @@ export default function App() {
     if (!ready) return
     const timer = setTimeout(() => project.tracks.forEach((track) => {
       if (!track.audio) return
-      if (isSampledInstrument(track.instrument) && (!track.pianoAudio || track.pianoBpm !== project.bpm || track.renderedInstrument !== track.instrument || track.pianoRenderVersion !== PIANO_RENDER_VERSION || track.renderedPianoOctave !== (track.pianoOctave ?? 0) || track.renderedPianoScale !== (track.pianoScale ?? DEFAULT_PIANO_SCALE))) {
+      if (isSampledInstrument(track.instrument) && !hasRenderedAudio(track, project.bpm)) {
         renderPianoTrack(track.id, track.audio)
       }
     }), 200)
@@ -207,6 +216,7 @@ export default function App() {
     playbackRequestRef.current += 1
     stopMetronome()
     recorderRef.current?.stop(false)
+    window.clearTimeout(finalizeTimerRef.current)
     pendingRecordingStreamRef.current?.getTracks().forEach((track) => track.stop())
     playSourcesRef.current.forEach(({ source }) => source.stop())
     cancelAnimationFrame(recordingFrameRef.current)
@@ -302,7 +312,7 @@ export default function App() {
           for (let channel = 0; channel < decoded.numberOfChannels; channel += 1) {
             audio.copyToChannel(decoded.getChannelData(channel).subarray(0, length), channel)
           }
-          const track = { ...newTrack(), audio }
+          const track = { ...newTrack(), audio, audioEnd: Math.min(SONG_LENGTH, decoded.duration) }
           setProject((current) => ({
             ...current,
             tracks: [...current.tracks, track],
@@ -454,7 +464,7 @@ export default function App() {
     metronomeRef.current = null
   }
 
-  function startMetronome(context, seek, startTime, loop) {
+  function startMetronome(context, seek, startTime, loop, loopEnd = SONG_LENGTH) {
     stopMetronome()
     if (metronomeBufferRef.current?.bpm !== project.bpm || metronomeBufferRef.current?.buffer.duration !== SONG_LENGTH) {
       metronomeBufferRef.current = { bpm: project.bpm, buffer: metronomeBuffer(context, project.bpm, SONG_LENGTH) }
@@ -462,7 +472,7 @@ export default function App() {
     const source = context.createBufferSource()
     source.buffer = metronomeBufferRef.current.buffer
     source.loop = loop
-    source.loopEnd = SONG_LENGTH
+    source.loopEnd = loopEnd
     source.connect(context.destination)
     source.onended = () => source.disconnect()
     metronomeRef.current = source
@@ -486,13 +496,13 @@ export default function App() {
     return Promise.all(tracks.filter((track) => track.audio).map(async (track) => ({
       track,
       audio: isSampledInstrument(track.instrument)
-        ? track.pianoAudio && track.pianoBpm === project.bpm && track.renderedInstrument === track.instrument && track.pianoRenderVersion === PIANO_RENDER_VERSION && track.renderedPianoOctave === (track.pianoOctave ?? 0) && track.renderedPianoScale === (track.pianoScale ?? DEFAULT_PIANO_SCALE)
+        ? hasRenderedAudio(track, project.bpm)
           ? track.pianoAudio : await renderPianoTrack(track.id, track.audio)
         : track.audio,
     })))
   }
 
-  function startTrackPlayback(context, tracks, startTime, loop) {
+  function startTrackPlayback(context, tracks, startTime, loop, loopEnd = SONG_LENGTH) {
     const sources = []
     playSourcesRef.current = sources
     for (const { track, audio } of tracks) {
@@ -502,7 +512,7 @@ export default function App() {
       source.buffer = audio.duration < SONG_LENGTH ? copyBuffer(context, audio) : audio
       source.loop = loop
       source.loopStart = 0
-      source.loopEnd = SONG_LENGTH
+      source.loopEnd = loopEnd
       gain.gain.value = track.muted ? 0 : 1
       source.connect(gain)
       gain.connect(context.destination)
@@ -514,7 +524,7 @@ export default function App() {
   }
 
   async function play() {
-    if (recording || playing || preparing) return
+    if (captureBusy || playing || preparing) return
     const request = ++playbackRequestRef.current
     setPreparing(true)
     setPlaybackError('')
@@ -530,12 +540,14 @@ export default function App() {
       throw new Error('A track could not be prepared. Retry its conversion before playing.')
     }
     const startTime = context.currentTime + 0.05
-    startTrackPlayback(context, playableTracks, startTime, true)
-    startMetronome(context, startAt, startTime, true)
+    const loopEnd = playbackLength(project.tracks)
+    startTrackPlayback(context, playableTracks, startTime, true, loopEnd)
+    startMetronome(context, startAt, startTime, true, loopEnd)
     const startedAt = startTime
     setPlaying(true)
     const tick = () => {
-      const seek = (startAt + Math.max(0, context.currentTime - startedAt)) % SONG_LENGTH
+      if (request !== playbackRequestRef.current) return
+      const seek = (startAt + Math.max(0, context.currentTime - startedAt)) % loopEnd
       updateProject({ seek })
       playFrameRef.current = requestAnimationFrame(tick)
     }
@@ -551,6 +563,7 @@ export default function App() {
   }
 
   async function toggleRecording() {
+    if (finalizing) return
     if (recording) {
       recorderRef.current?.stop()
       return
@@ -601,6 +614,8 @@ export default function App() {
       const stop = (save = true) => {
         if (stopped) return
         stopped = true
+        const duration = Math.max(0, Math.min(SONG_LENGTH - start, context.currentTime - startedAt))
+        const end = Math.min(SONG_LENGTH, start + duration)
         stopMetronome()
         playSourcesRef.current.forEach(({ source }) => source.stop())
         playSourcesRef.current = []
@@ -615,32 +630,42 @@ export default function App() {
         if (!save) return
         setVolume(0)
         setRecording(false)
-        const duration = Math.max(0, Math.min(SONG_LENGTH - start, context.currentTime - startedAt))
+        updateProject({ seek: end })
         const frameCount = Math.round(duration * context.sampleRate)
         if (!frameCount || !chunks.length) return
-        const recordingBuffer = context.createBuffer(1, frameCount, context.sampleRate)
-        const recorded = recordingBuffer.getChannelData(0)
-        let offset = 0
-        for (const chunk of chunks) {
-          recorded.set(chunk.subarray(0, Math.max(0, frameCount - offset)), offset)
-          offset += chunk.length
-          if (offset >= frameCount) break
-        }
-        const end = Math.min(SONG_LENGTH, start + duration)
-        const fullLength = Math.ceil(SONG_LENGTH * context.sampleRate)
-        const audio = targetTrack?.audio
-          ? copyBuffer(context, targetTrack.audio)
-          : context.createBuffer(1, fullLength, context.sampleRate)
-        audio.getChannelData(0).set(recorded, Math.round(start * context.sampleRate))
-        setProject((current) => ({
-          ...current,
-          seek: end,
-          tracks: current.tracks.map((track) => {
-            if (track.id !== targetTrack.id) return track
-            return { ...track, audio, pianoAudio: null, pianoRenderVersion: null }
-          }),
-        }))
-        if (isSampledInstrument(targetTrack?.instrument)) renderPianoTrack(targetTrack.id, audio)
+        setFinalizing(true)
+        // Let the stopped seek and spinner paint before allocating/copying PCM.
+        finalizeTimerRef.current = window.setTimeout(() => {
+          try {
+            const recordingBuffer = context.createBuffer(1, frameCount, context.sampleRate)
+            const recorded = recordingBuffer.getChannelData(0)
+            let offset = 0
+            for (const chunk of chunks) {
+              recorded.set(chunk.subarray(0, Math.max(0, frameCount - offset)), offset)
+              offset += chunk.length
+              if (offset >= frameCount) break
+            }
+            const fullLength = Math.ceil(SONG_LENGTH * context.sampleRate)
+            const audio = targetTrack?.audio
+              ? copyBuffer(context, targetTrack.audio)
+              : context.createBuffer(1, fullLength, context.sampleRate)
+            audio.getChannelData(0).set(recorded, Math.round(start * context.sampleRate))
+            setProject((current) => ({
+              ...current,
+              seek: end,
+              tracks: current.tracks.map((track) => {
+                if (track.id !== targetTrack.id) return track
+                return { ...track, audio, audioEnd: Math.max(track.audioEnd ?? 0, end), pianoAudio: null, pianoRenderVersion: null }
+              }),
+            }))
+            if (isSampledInstrument(targetTrack?.instrument)) renderPianoTrack(targetTrack.id, audio)
+          } catch (error) {
+            setPlaybackError(error.message || 'Could not process the recording.')
+          } finally {
+            finalizeTimerRef.current = null
+            setFinalizing(false)
+          }
+        }, 20)
       }
       session = { stop, endTimer: window.setTimeout(stop, (SONG_LENGTH - start) * 1000) }
       recorderRef.current = session
@@ -650,6 +675,7 @@ export default function App() {
       setPreparing(false)
       setRecording(true)
       const moveSeek = () => {
+        if (stopped) return
         updateProject({ seek: Math.min(SONG_LENGTH, start + context.currentTime - startedAt) })
         if (!stopped) recordingFrameRef.current = requestAnimationFrame(moveSeek)
       }
@@ -736,12 +762,12 @@ export default function App() {
         </div>
         <div className="transport-actions">
           <div className="transport-key"><span className="panel-label"><i className={recording ? 'led led-on' : 'led'} /> INPUT</span>
-            <button className={`key key-orange record-key ${recording ? 'key-active' : ''}`} type="button" onClick={toggleRecording} disabled={!ready || !selectedTrack || importing}>
+            <button className={`key key-orange record-key ${recording ? 'key-active' : ''}`} type="button" onClick={toggleRecording} disabled={!ready || !selectedTrack || importing || finalizing}>
               {recording ? 'Stop recording' : arming ? 'Cancel recording' : 'Record'}
             </button>
           </div>
           <div className="transport-key"><span className="panel-label"><i className={playing ? 'led led-on' : 'led'} /> TRANSPORT</span>
-          <button className={`key play-key ${playing ? 'key-active' : ''}`} type="button" onClick={playing || preparing ? stopPlayback : play} disabled={recording || importing || !ready}>
+          <button className={`key play-key ${playing ? 'key-active' : ''}`} type="button" onClick={playing || preparing ? stopPlayback : play} disabled={recording || finalizing || importing || !ready}>
             {preparing ? 'Cancel' : playing ? 'Stop' : 'Play'}
           </button>
           </div>
@@ -804,6 +830,9 @@ export default function App() {
         </div>
       </section>
       <footer className="export-controls">
+        <div className="render-indicator" role="status" aria-live="polite">
+          {(finalizing || waitingForRender || renderingTrackIds.length > 0) && <span className="render-spinner" role="img" aria-label="Rendering audio" />}
+        </div>
         <button className="key key-small key-light" type="button" onClick={exportMidi}
           disabled={!ready || captureBusy || exporting || !project.tracks.some((track) => track.audio && !track.muted && isSampledInstrument(track.instrument))}
           title="Export notes from unmuted piano, guitar, and electric guitar tracks">

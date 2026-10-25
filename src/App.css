@@ -137,7 +137,11 @@ select { width: 100%; padding: 7px 24px 7px 9px; min-height: 32px; border: 1px s
 .track-actions .key-small { font-size: 8px; padding: 5px 8px; min-height: 25px; }
 .mute-key[aria-pressed='true'] { color: #ff9b70; border-color: #974326; box-shadow: inset 0 1px 3px #0008, 0 1px 0 #121510; transform: translateY(2px); }
 .track-muted .track-status { opacity: .6; }
-.export-controls { display: flex; justify-content: flex-end; padding: 0 30px 18px; margin-top: auto; }
+.export-controls { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 30px 18px; margin-top: auto; }
+.render-indicator { display: flex; align-items: center; margin-right: auto; }
+.render-spinner { width: 16px; height: 16px; border: 2px solid #0003; border-top-color: #ff7a32; border-radius: 50%; animation: render-spin 800ms linear infinite; }
+@keyframes render-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .render-spinner { animation: none; } }
 .export-controls .key { min-height: 36px; }
 @media (max-width: 680px) {
   .app { width: 100%; }

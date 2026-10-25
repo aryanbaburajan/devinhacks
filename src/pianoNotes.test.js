@@ -12,26 +12,66 @@ test('irregular pitch changes are sampled once per beat', () => {
   assert.deepEqual(notes, [{ note: 69, time: 0, duration: 0.5 }, { note: 71, time: 0.5, duration: 0.5 }])
 })
 
-test('a sustained note retriggers on every beat despite vibrato or brief dropouts', () => {
+test('a sustained note rings across beats despite vibrato or brief dropouts', () => {
   const frames = framesAt(2, (time) => ({ pitch: time === 0.5 ? null : 440 * 2 ** (0.2 * Math.sin(time * 30) / 12) }))
   const notes = pianoNotes(frames, 2)
-  assert.equal(notes.length, 4)
-  assert.ok(notes.every((note) => note.note === 69 && note.duration === 0.5))
-  assert.deepEqual(notes.map((note) => note.time), [0, 0.5, 1, 1.5])
-  assert.equal(pianoNotes(frames, 2, 0, undefined, 60).length, 2)
+  assert.deepEqual(notes, [{ note: 69, time: 0, duration: 2 }])
+  assert.deepEqual(pianoNotes(frames, 2, 0, undefined, 60), notes)
 })
 
-test('silent beats stay silent and volume attacks do not add extra notes', () => {
+test('silent beats stay silent even when volume rises without a detected pitch', () => {
   const frames = framesAt(2, (time) => ({ pitch: time >= 0.5 && time < 1 ? null : 440, volume: time >= 0.73 ? 0.3 : 0.1 }))
-  assert.deepEqual(pianoNotes(frames, 2).map((event) => event.time), [0, 1, 1.5])
+  assert.deepEqual(pianoNotes(frames, 2).map((event) => event.time), [0, 1])
   assert.deepEqual(pianoNotes(framesAt(1, () => ({ pitch: null })), 1), [])
+})
+
+test('clear volume attacks retrigger the same pitch on the nearest beat, only once', () => {
+  for (const attack of [0.47, 0.53]) {
+    const frames = framesAt(2, (time) => ({ pitch: 440, volume: time < attack ? 0.05 : 0.2 }))
+    assert.deepEqual(pianoNotes(frames, 2), [
+      { note: 69, time: 0, duration: 0.5 }, { note: 69, time: 0.5, duration: 1.5 },
+    ])
+  }
+})
+
+test('volume attacks follow BPM and combine with pitch changes without duplicate notes', () => {
+  const frames = framesAt(2, (time) => ({ pitch: time < 1.5 ? 440 : 494, volume: time < 0.9 ? 0.05 : 0.2 }))
+  assert.deepEqual(pianoNotes(frames, 2), [
+    { note: 69, time: 0, duration: 1 }, { note: 69, time: 1, duration: 0.5 }, { note: 71, time: 1.5, duration: 0.5 },
+  ])
+  const simultaneous = framesAt(2, (time) => ({ pitch: time < 1 ? 440 : 494, volume: time < 0.9 ? 0.05 : 0.2 }))
+  assert.deepEqual(pianoNotes(simultaneous, 2, 0, undefined, 60), [
+    { note: 69, time: 0, duration: 1 }, { note: 71, time: 1, duration: 1 },
+  ])
+})
+
+test('volume flutter, a one-frame spike, slow swells and decay do not retrigger held notes', () => {
+  for (const envelope of [
+    (time) => 0.1 + 0.015 * Math.sin(time * 25),
+    (time) => time === 0.5 ? 0.8 : 0.1,
+    (time) => 0.05 + time * 0.1,
+    (time) => 0.2 * Math.exp(-time),
+    () => undefined,
+  ]) {
+    const frames = framesAt(2, (time) => ({ pitch: 440, volume: envelope(time) }))
+    assert.deepEqual(pianoNotes(frames, 2), [{ note: 69, time: 0, duration: 2 }])
+  }
 })
 
 test('isolated pitch jumps are ignored and octave controls transpose notes', () => {
   const frames = framesAt(1, (time) => ({ pitch: time === 0.5 ? 880 : 440 }))
-  assert.equal(pianoNotes(frames, 1).length, 2)
+  assert.equal(pianoNotes(frames, 1).length, 1)
   assert.equal(pianoNotes(frames, 1, 1)[0].note, 81)
   assert.equal(pianoNotes(frames, 1, -1)[0].note, 57)
+})
+
+test('a short note crossing a beat triggers once, while a genuine rest separates notes', () => {
+  const crossing = framesAt(1, (time) => ({ pitch: time >= 0.4 && time < 0.6 ? 440 : null }))
+  assert.deepEqual(pianoNotes(crossing, 1), [{ note: 69, time: 0, duration: 1 }])
+  const repeated = framesAt(1, (time) => ({ pitch: time < 0.4 || time >= 0.6 ? 440 : null }))
+  assert.deepEqual(pianoNotes(repeated, 1), [
+    { note: 69, time: 0, duration: 0.5 }, { note: 69, time: 0.5, duration: 0.5 },
+  ])
 })
 
 test('note duration is clipped at the song boundary', () => {
