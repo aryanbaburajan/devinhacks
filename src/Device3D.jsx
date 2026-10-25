@@ -138,7 +138,6 @@ export default function Device3D({ children }) {
   return <div className={`device-view${mobile ? ' is-mobile' : ''}`} tabIndex={-1}
     onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
     onLostPointerCapture={end} onKeyDown={keyboard}>
-    {enabled && !mobile && <div className="view-tools"><button type="button" onClick={() => scene.current?.reset()}>Reset view</button></div>}
     {mobile && <div className="view-tools tilt-tools">
       {tiltStatus === 'https' && <span role="status">Tilt needs HTTPS</span>}
       {tiltStatus === 'denied' && <span role="status">Motion access denied</span>}

@@ -4,6 +4,13 @@ Record each meaningful project change during the event, newest first. Update thi
 
 ## Event build log
 
+## 2026-10-25T11:39:22+05:30 — Enlarge and fit the content-driven device
+
+- Changed: Widened the centered device from 420px to 720px in `src/Device3D.css`, kept compact controls at that width in `src/App.css`, and removed viewport-height minimums so the chassis grows with its tracks. Added vertical canvas room for the rotated shell in `src/deviceScene.js`, removed the desktop Reset view button from `src/Device3D.jsx`, updated layout and resize tests, and revised `README.md`.
+- Why: Fill more of a desktop frame, keep the footer visible, and avoid empty device height when there is only one track.
+- Validation: Inspected a 1440×1000 Chrome render with the full footer visible and no Reset view button. All 65 tests, the production build, and `git diff --check` passed. The scene test checks growth and shrinkage after resize; the existing large generated 3D chunk warning remains.
+- Limitations: The screenshot covers one track at the default desktop angle; other browsers and extreme rotation angles were not visually inspected.
+
 ## 2026-10-25T11:36:24+05:30 — Use phone-width layout in desktop browsers
 
 - Changed: Capped the device pose at 420px in `src/Device3D.css` and made the existing compact rules in `src/App.css` and `src/Device3D.css` respond to device width. Moved Reset view beside the narrower device, updated the scene fixture width, and documented the layout in `README.md`.

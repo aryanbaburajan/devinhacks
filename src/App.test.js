@@ -272,7 +272,8 @@ test('background dragging retains its angle on release; reset is explicit and co
     await click('Create track')
     assert.equal(rotations, 2)
     assert.equal(document.querySelectorAll('.track').length, 2)
-    await click('Reset view')
+    assert.equal(button('Reset view'), undefined)
+    await act(async () => grip.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Home', bubbles: true })))
     assert.deepEqual(orientation, { x: 9, y: -12 })
   } finally {
     await unmount()

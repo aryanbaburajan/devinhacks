@@ -24,8 +24,6 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   flex-direction: column;
   width: 100%;
   container: device / inline-size;
-  min-height: 100vh;
-  min-height: 100dvh;
   margin: 0 auto;
   border: 1px solid #e8e5df;
   border-radius: 0;
@@ -144,7 +142,7 @@ select { width: 100%; padding: 7px 24px 7px 9px; min-height: 32px; border: 1px s
 @keyframes render-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .render-spinner { animation: none; } }
 .export-controls .key { min-height: 36px; }
-@container device (max-width: 680px) {
+@container device (max-width: 740px) {
   .transport { flex-wrap: wrap; }
   .track-section-heading { flex-wrap: wrap; }
   .track-settings { min-width: 0; }
@@ -193,7 +191,7 @@ select { width: 100%; padding: 7px 24px 7px 9px; min-height: 32px; border: 1px s
 .track-icon { display: block; width: 18px; height: 18px; flex-shrink: 0; }
 .instrument-picker { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 36px; padding: 7px 10px; font-size: 11px; }
 .track-actions .track-icon, .track-status .track-icon { display: none; }
-@container device (max-width: 680px) {
+@container device (max-width: 740px) {
   .track-list { gap: 10px; }
   .track { flex-direction: row; align-items: center; flex-wrap: nowrap; gap: 4px; padding: 7px 6px; }
   .track-body, .track-lower { display: contents; }

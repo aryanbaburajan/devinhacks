@@ -132,7 +132,9 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
     height = app.offsetHeight
     sceneWidth = stage.clientWidth
     // The canvas spans the full page width, independently of the face width.
-    sceneHeight = Math.max(height, 1)
+    // Rotation projects the top and footer beyond the flat face. Keep room
+    // inside the canvas so the physical shell is not clipped at its edges.
+    sceneHeight = Math.max(height + (mobile() ? 0 : 160), 1)
     stage.style.height = `${sceneHeight}px`
     updateResolution()
     renderer.setSize(sceneWidth, sceneHeight)

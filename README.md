@@ -45,13 +45,14 @@ selected track. use a new track to keep an earlier take.
 the loading circle immediately left of **Export MIDI** appears while a recording
 is being processed or instrument audio is being prepared, including on mobile.
 
-on desktop, drag the background to rotate the device; **Reset view** restores
-its starting angle. scrollbar space stays reserved so tilting does not change
-the canvas width. buttons, sliders, and selectors sit near their panel face
-to reduce missed clicks while the 3d model supplies their raised appearance.
-the device stays at a phone-like width (up to 420px) even in a wide browser
-window; its controls use the compact layout at that width. phone tilt behavior
-is unchanged.
+on desktop, drag the background to rotate the device. focus an edge grip and
+press Home to restore its starting angle. scrollbar space stays reserved so
+tilting does not change the canvas width. buttons, sliders, and selectors sit
+near their panel face to reduce missed clicks while the 3d model supplies
+their raised appearance.
+the centered device is up to 720px wide in a browser while retaining the
+compact control layout. its height follows the content and grows as tracks
+are added. phone tilt behavior is unchanged.
 
 ## 03 / specifications
 

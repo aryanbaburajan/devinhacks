@@ -3,20 +3,21 @@ import { test } from 'node:test'
 import { JSDOM } from 'jsdom'
 import { createServer } from 'vite'
 
-for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry and shadows, while pressing controls still updates both layers`, async () => {
+for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content height while rotation and controls stay aligned`, async () => {
   const dom = new JSDOM('<div id="stage"><div id="viewport"><div id="pose"><main class="app"><button class="key">Play</button><div class="meter-bars"><i></i></div></main></div></div></div>')
   const names = ['window', 'document', 'ResizeObserver', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'testDeviceRenderer']
   const original = Object.fromEntries(names.map((key) => [key, globalThis[key]]))
   const frames = new Map()
-  let nextId = 0, draws = 0, shadowPasses = 0, meshes, pixelRatio
+  let nextId = 0, draws = 0, shadowPasses = 0, meshes, pixelRatio, onResize
+  let appHeight = 700
   const document = dom.window.document
   const stage = document.getElementById('stage'), viewport = document.getElementById('viewport'), pose = document.getElementById('pose')
   const app = document.querySelector('.app'), button = document.querySelector('button')
   const screenWidth = mode === 'mobile' ? 390 : 1440
   dom.window.innerWidth = screenWidth
   dom.window.devicePixelRatio = 2
-  for (const [element, width, height] of [[stage, screenWidth, 700], [app, Math.min(screenWidth, 420), 700], [button, 80, 40]]) {
-    Object.defineProperties(element, { offsetWidth: { value: width }, offsetHeight: { value: height }, clientWidth: { value: width } })
+  for (const [element, width, height] of [[stage, screenWidth, 700], [app, Math.min(screenWidth, 720), 700], [button, 80, 40]]) {
+    Object.defineProperties(element, { offsetWidth: { value: width }, offsetHeight: { get: () => element === app ? appHeight : height }, clientWidth: { value: width } })
   }
   Object.defineProperty(button, 'offsetParent', { value: app })
   const renderer = {
@@ -33,7 +34,7 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
     },
   }
   Object.assign(globalThis, {
-    window: dom.window, document, ResizeObserver: class { observe() {} disconnect() {} },
+    window: dom.window, document, ResizeObserver: class { constructor(callback) { onResize = callback } observe() {} disconnect() {} },
     MutationObserver: dom.window.MutationObserver,
     requestAnimationFrame: (callback) => { frames.set(++nextId, callback); return nextId },
     cancelAnimationFrame: (id) => frames.delete(id), testDeviceRenderer: renderer,
@@ -97,6 +98,13 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} rotation reuses geometry
     frame(1016)
     assert.equal(shadowPasses, 3)
     assert.equal(keyCap.position.z, raisedPosition)
+    for (const [height, time] of [[930, 1032], [580, 1048]]) {
+      appHeight = height
+      onResize()
+      meshes = undefined // A size change rebuilds the physical chassis.
+      frame(time)
+      assert.equal(stage.style.height, `${height + (mode === 'desktop' ? 160 : 0)}px`)
+    }
   } finally {
     controller?.dispose()
     await server.close()
