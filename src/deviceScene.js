@@ -217,17 +217,19 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
     if (speaker?.offsetWidth > 0 && speaker.offsetHeight > 0) {
       const rect = layoutRect(speaker, app)
       addBox(rect, 4, 0.6, 0.4, 0x969792, 0.58, 0.28)
-      const columns = 12, pitch = rect.width / columns
-      const rows = Math.max(1, Math.floor(rect.height / pitch))
+      const columns = 14
+      const ventInset = Math.min(18, rect.width * 0.08, rect.height * 0.08)
+      const pitch = (rect.width - ventInset * 2) / columns
+      const rows = Math.max(1, Math.floor((rect.height - ventInset * 2) / pitch))
       const top = rect.top + (rect.height - rows * pitch) / 2
-      const holes = new THREE.InstancedMesh(new THREE.CylinderGeometry(pitch * 0.20, pitch * 0.18, 1, 12),
+      const holes = new THREE.InstancedMesh(new THREE.CylinderGeometry(pitch * 0.24, pitch * 0.21, 1, 12),
         new THREE.MeshStandardMaterial({ color: 0x181b18, roughness: 0.8, normalMap: holeNormals, normalScale: new THREE.Vector2(0.85, 0.85) }), columns * rows)
-      const rims = new THREE.InstancedMesh(new THREE.TorusGeometry(pitch * 0.25, pitch * 0.035, 5, 12),
+      const rims = new THREE.InstancedMesh(new THREE.TorusGeometry(pitch * 0.30, pitch * 0.04, 5, 12),
         new THREE.MeshStandardMaterial({ color: 0xb9bbb4, metalness: 0.4, roughness: 0.55, normalMap: rimNormals, normalScale: new THREE.Vector2(0.5, 0.5) }), columns * rows)
       const helper = new THREE.Object3D()
       let index = 0
       for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
-        const point = { left: rect.left + (column + 0.5) * pitch, top: top + (row + 0.5) * pitch, width: 0, height: 0 }
+        const point = { left: rect.left + ventInset + (column + 0.5) * pitch, top: top + (row + 0.5) * pitch, width: 0, height: 0 }
         helper.position.set(...controlPosition(point, width, height, 0.65))
         helper.rotation.set(Math.PI / 2, 0, 0)
         helper.updateMatrix()
