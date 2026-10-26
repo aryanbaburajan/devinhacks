@@ -68,9 +68,6 @@
 .is-3d .display-panel,
 .is-3d .transport,
 .is-3d .track { background: transparent; border-color: transparent; box-shadow: none; }
-/* Let the connector rail meet the outer chassis edge instead of looking inset
-   when the tilted shell projects beyond the flat front face. */
-.is-3d .device-rail { width: calc(100% + 16px); margin-inline: -8px; }
 .is-3d .speaker { background-image: none; }
 .is-3d .device-rail .rail-tab { background: transparent; box-shadow: none; transform: translateZ(2.6px); }
 .is-3d .rail-end i { background: transparent; }

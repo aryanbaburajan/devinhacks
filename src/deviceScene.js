@@ -165,13 +165,14 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
     for (const x of [32, width - 55]) for (const y of [32, height - 55]) {
       addCylinder({ left: x, top: y, width: 24, height: 24 }, 12, 7, -50, 0x20231f)
     }
-    for (const [selector, color, top] of [
-      ['.device-rail', 0xc5c3be, 1], ['.device-header', 0xe5e1dc, 0.5],
-      ['.track', 0xb6b4a9, 1],
+    for (const [selector, color, top, depth] of [
+      // The connector rail is an inset seam in the housing, not an overhanging cap.
+      ['.device-rail', 0xc5c3be, -1.5, 2], ['.device-header', 0xe5e1dc, 0.5, 4],
+      ['.track', 0xb6b4a9, 1, 4],
     ]) {
       for (const element of app.querySelectorAll(selector)) {
         const rect = layoutRect(element, app)
-        if (rect.width && rect.height) addBox(rect, 4, top, 1.5, color, 0.7)
+        if (rect.width && rect.height) addBox(rect, depth, top, 1.5, color, 0.7)
       }
     }
     for (const [selector, color] of [
