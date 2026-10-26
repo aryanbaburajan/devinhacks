@@ -76,7 +76,7 @@ melody; a clear solo phrase gives it the best material to work with.
 
 recordings and melody processing stay in your browser. sampled instruments
 download their sounds during preparation, so allow an internet connection for
-sample loading. see [instrument samples and credits](AUDIO_SOURCES.md).
+sample loading.
 
 the current project returns when you reopen the same site in the same browser.
 clearing site data removes it. MIDI exports contain notes, not recordings or a
@@ -94,7 +94,7 @@ complete project backup.
 the app runs in the browser without an application backend. serve `dist/` over
 HTTPS when deploying.
 
-## 06 / project record
+## 06 / project
 
 for musicians and anyone with a melody in mind: a place to catch a phrase,
 try another voice, and build a short arrangement before taking the notes further.
@@ -103,19 +103,10 @@ try another voice, and build a short arrangement before taking the notes further
 | :--- | :--- |
 | project | S-251X · sound. on the go. |
 | repository | [aryanbaburajan/devinhacks](https://github.com/aryanbaburajan/devinhacks) |
-| contributor | Aryan Baburajan · [@aryanbaburajan](https://github.com/aryanbaburajan) · final participant roster to confirm |
+| contributor | Aryan Baburajan · [@aryanbaburajan](https://github.com/aryanbaburajan) |
 | working demo | run locally with [power on](#01--power-on), then follow [make something](#02--make-something) |
 | current status | recording · audio import · sampled instruments · layered playback · MIDI export · local save |
 | limits | 60-second arrangements · single-melody conversion · browser-local storage · network needed for samples |
-
-hackathon documentation adapted from the
-[DevDay Kochi template](https://github.com/anima-regem/devday-kochi-hackathon-template).
-the template lists DevDay Exchange Community Hackathon: Kochi, 10–11 October
-2026, at JAIN University. see [event details and rules](RULES.md) and
-[agent instructions](AGENTS.md).
-
-see [submission details](SUBMISSION.md), [AI usage](AI_USAGE.md), and the
-[change log](CHANGELOG.md) for the project record.
 
 ## 07 / sources
 
@@ -131,7 +122,6 @@ tests use Node.js's test runner,
 [fake-indexeddb](https://github.com/dumbmatter/fakeIndexedDB),
 [jsdom](https://github.com/jsdom/jsdom), and
 [web-audio-engine](https://github.com/mohayonao/web-audio-engine).
-sample sources and attribution are in [instrument samples and credits](AUDIO_SOURCES.md).
 
 ---
 
