@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { JSDOM } from 'jsdom'
 import { createServer } from 'vite'
 
-for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content height while rotation and controls stay aligned`, async () => {
+for (const mode of ['mobile', 'desktop']) test(`${mode} scene fills its frame while rotation and controls stay aligned`, async () => {
   const dom = new JSDOM('<div id="stage"><div id="viewport"><div id="pose"><main class="app"><button class="key">Play</button><div class="meter-bars"><i></i></div></main></div></div></div>')
   const names = ['window', 'document', 'ResizeObserver', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'testDeviceRenderer']
   const original = Object.fromEntries(names.map((key) => [key, globalThis[key]]))
@@ -15,6 +15,7 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content he
   const app = document.querySelector('.app'), button = document.querySelector('button')
   const screenWidth = mode === 'mobile' ? 390 : 1440
   dom.window.innerWidth = screenWidth
+  dom.window.innerHeight = 900
   dom.window.devicePixelRatio = 2
   for (const [element, width, height] of [[stage, screenWidth, 700], [app, Math.min(screenWidth, 720), 700], [button, 80, 40]]) {
     Object.defineProperties(element, { offsetWidth: { value: width }, offsetHeight: { get: () => element === app ? appHeight : height }, clientWidth: { value: width } })
@@ -51,6 +52,7 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content he
     const { createDeviceScene } = await server.ssrLoadModule('/src/deviceScene.js')
     controller = createDeviceScene(stage, viewport, pose, app, () => assert.fail('Scene failed'))
     frame(0)
+    assert.equal(stage.style.height, `${mode === 'desktop' ? 900 : 700}px`)
     assert.equal(shadowPasses, 1)
     const keyCap = meshes.find((mesh) => mesh.material?.color?.getHex() === 0x292d26)
     assert.ok(keyCap, 'button cap should be rendered in the 3D scene')
@@ -104,22 +106,12 @@ for (const mode of ['mobile', 'desktop']) test(`${mode} scene follows content he
       onResize()
       meshes = undefined // A size change rebuilds the physical chassis.
       frame(time)
-      assert.equal(stage.style.height, `${height + (mode === 'desktop' ? 160 : 0)}px`)
+      assert.equal(stage.style.height, `${Math.max(height + (mode === 'desktop' ? 160 : 0), mode === 'desktop' ? 900 : 1)}px`)
     }
     const wheel = new dom.window.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -80 })
     app.dispatchEvent(wheel)
-    assert.equal(wheel.defaultPrevented, mode === 'desktop')
-    if (mode === 'desktop') {
-      assert.equal(controller.zoom, 1.1)
-      frame(1064)
-      assert.equal(cameraZoom, 1.1)
-      assert.ok(pose.style.transform.includes('scale3d(1.1, 1.1, 1)'))
-      assert.equal(stage.style.height, `${Math.ceil(appHeight * 1.1) + 160}px`)
-      assert.equal(controller.zoomBy(10), 1.6)
-      assert.equal(controller.zoomBy(-10), 0.8)
-    } else {
-      assert.equal(controller.zoom, 1)
-    }
+    assert.equal(wheel.defaultPrevented, false)
+    assert.equal(cameraZoom, 1)
   } finally {
     controller?.dispose()
     await server.close()

@@ -51,12 +51,10 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
 
   const restRotation = mobile() ? { x: 0, y: 0 } : DEFAULT_ROTATION
   let rotation = { ...restRotation }
-  let zoom = 1
   let returning = false
   let lastFrameTime = 0
   let scheduled = 0
   let dirty = true
-  let projectionDirty = false
   let controlsDirty = true
   let disposed = false
   let width = 0, height = 0
@@ -131,7 +129,7 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
     // The canvas spans the full page width, independently of the face width.
     // Rotation projects the top and footer beyond the flat face. Keep room
     // inside the canvas so the physical shell is not clipped at its edges.
-    sceneHeight = Math.max(Math.ceil(height * zoom) + (mobile() ? 0 : 160), 1)
+    sceneHeight = Math.max(Math.ceil(height) + (mobile() ? 0 : 160), mobile() ? 1 : window.innerHeight, 1)
     stage.style.height = `${sceneHeight}px`
     updateResolution()
     renderer.setSize(sceneWidth, sceneHeight)
@@ -141,7 +139,7 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
     viewport.style.perspective = `${focal}px`
     camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(sceneHeight / (2 * focal)))
     camera.aspect = sceneWidth / sceneHeight
-    camera.zoom = zoom
+    camera.zoom = 1
     camera.position.set(0, 0, focal)
     camera.far = focal + height * 2 + 1000
     camera.updateProjectionMatrix()
@@ -292,12 +290,11 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
       rotation = { x: displayTilt.y * 40, y: -displayTilt.x * 40 }
       returning = false
     }
-    if (dirty) { dirty = false; projectionDirty = false; rebuild() }
-    else if (projectionDirty) { projectionDirty = false; updateProjection() }
+    if (dirty) { dirty = false; rebuild() }
     if (displayGlass) displayGlass.material.envMapRotation.set(displayTilt.y * 0.65, displayTilt.x * 0.85, 0)
     rig.rotation.set(THREE.MathUtils.degToRad(-rotation.x), THREE.MathUtils.degToRad(rotation.y), 0)
     updateDeviceShadow(rig, key)
-    pose.style.transform = `translate(-50%, -50%) scale3d(${zoom}, ${zoom}, 1) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`
+    pose.style.transform = `translate(-50%, -50%) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`
     if (controlsDirty) {
     controlsDirty = false
     for (const [element, control] of controls) {
@@ -384,7 +381,6 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
   renderer.domElement.addEventListener('webglcontextlost', contextLost)
   const controller = {
     get rotation() { return rotation },
-    get zoom() { return zoom },
     hold() { returning = false; markMotion(); invalidate(false, false) },
     setDeviceTilt(x, y, frameTime) {
       if (!Number.isFinite(x) || !Number.isFinite(y) || disposed) return
@@ -403,16 +399,6 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
       rotation = next
       markMotion()
       invalidate(false, false)
-    },
-    zoomBy(amount) {
-      if (!Number.isFinite(amount) || disposed) return zoom
-      const next = Math.max(0.8, Math.min(1.6, Math.round((zoom + amount) * 100) / 100))
-      if (next !== zoom) {
-        zoom = next
-        projectionDirty = true
-        invalidate(false, false)
-      }
-      return zoom
     },
     reset() {
       if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
@@ -440,7 +426,6 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
       app.removeEventListener('focusin', focus)
       app.removeEventListener('focusout', blur)
       app.removeEventListener('input', update)
-      app.removeEventListener('wheel', wheel)
       window.removeEventListener('resize', onResize)
       disposeModel(model)
       holeNormals.dispose()
@@ -457,12 +442,5 @@ export function createDeviceScene(stage, viewport, pose, app, onFailure = () => 
       app.style.removeProperty('--display-z')
     },
   }
-  const wheel = (event) => {
-    if (mobile() || disposed) return
-    event.preventDefault()
-    const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1)
-    controller.zoomBy(-pixels / 800)
-  }
-  app.addEventListener('wheel', wheel, { passive: false })
   return controller
 }
