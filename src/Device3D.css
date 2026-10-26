@@ -48,6 +48,10 @@
   will-change: transform;
   z-index: 1;
 }
+@media (min-width: 681px) and (pointer: fine) {
+  /* The rotated chassis projects slightly above the canvas centre on desktop. */
+  .is-3d .device-pose { top: calc(50% + 28px); }
+}
 .is-3d .app {
   width: 100%;
   margin: 0;
